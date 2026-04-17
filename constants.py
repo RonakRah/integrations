@@ -35,59 +35,31 @@ SELECT id,
 
 
 INTEGRATION_COUNTRY_MODE_MAPPING_DICT = {
-    "eu_omio": [
-        {"country": "germany", "travel_mode": "train"},
-        {"country": "italy", "travel_mode": "train"},
-        {"country": "france", "travel_mode": "train"},
-        {"country": "united kingdom", "travel_mode": "train"},
-        {"country": "spain", "travel_mode": "train"},
-        {"country": "austria", "travel_mode": "train"},
-        {"country": "sweden", "travel_mode": "train"},
-        {"country": "switzerland", "travel_mode": "train"},
-        {"country": "czechia", "travel_mode": "train"},
-        {"country": "poland", "travel_mode": "train"},
-        {"country": "belgium", "travel_mode": "train"},
-        {"country": "netherlands", "travel_mode": "train"},
-        {"country": "hungary", "travel_mode": "train"},
-        {"country": "denmark", "travel_mode": "train"},
-        {"country": "slovakia", "travel_mode": "train"},
-        {"country": "norway", "travel_mode": "train"},
-        {"country": "finland", "travel_mode": "train"},
-        {"country": "luxembourg", "travel_mode": "train"},
-        {"country": "liechtenstein", "travel_mode": "train"},
-    ],
+    "train": {
+        "eu_omio": [
+            "germany","italy","france","united kingdom","spain","austria",
+            "sweden","switzerland","czechia","poland","belgium","netherlands",
+            "hungary","denmark","slovakia","norway","finland","luxembourg",
+            "liechtenstein"
+        ],
+        "jp_omio_train": ["japan"],
+        "uk_omio_nationalrail": ["united kingdom"],
+        "uk_lner": ["united kingdom"],
+        "pt_omio_comboios": ["portugal"],
+        "eu_omio_deutschebahn": ["germany"],
+        "us_omio": ["usa"],
+    },
 
-    "eu_omio_bus": [
-        {"country": "spain", "travel_mode": "bus"},
-        {"country": "italy", "travel_mode": "bus"},
-        {"country": "united kingdom", "travel_mode": "bus"},
-        {"country": "france", "travel_mode": "bus"},
-        {"country": "poland", "travel_mode": "bus"},
-        {"country": "germany", "travel_mode": "bus"},
-        {"country": "portugal", "travel_mode": "bus"},
-        {"country": "croatia", "travel_mode": "bus"},
-        {"country": "norway", "travel_mode": "bus"},
-        {"country": "netherlands", "travel_mode": "bus"},
-        {"country": "sweden", "travel_mode": "bus"},
-        {"country": "czechia", "travel_mode": "bus"},
-        {"country": "belgium", "travel_mode": "bus"},
-        {"country": "austria", "travel_mode": "bus"},
-        {"country": "slovakia", "travel_mode": "bus"},
-        {"country": "denmark", "travel_mode": "bus"},
-        {"country": "switzerland", "travel_mode": "bus"},
-        {"country": "slovenia", "travel_mode": "bus"},
-        {"country": "hungary", "travel_mode": "bus"},
-        {"country": "luxembourg", "travel_mode": "bus"},
-    ],
-
-    "jp_omio_bus": [{"country": "japan", "travel_mode": "bus"}],
-    "jp_omio_train": [{"country": "japan", "travel_mode": "train"}],
-
-    "uk_omio_nationalrail": [{"country": "united kingdom", "travel_mode": "train"}],
-    "uk_lner": [{"country": "united kingdom", "travel_mode": "train"}],
-
-    "pt_omio_comboios": [{"country": "portugal", "travel_mode": "train"}],
-    "br_omio_bus": [{"country": "brazil", "travel_mode": "bus"}],
-    "eu_omio_deutschebahn": [{"country": "germany", "travel_mode": "train"}],
-    "us_omio": [{"country": "usa", "travel_mode": "train"}],
+    "bus": {
+        "eu_omio_bus": [
+            "spain","italy","united kingdom","france","poland","germany",
+            "portugal","croatia","norway","netherlands","sweden","czechia",
+            "belgium","austria","slovakia","denmark","switzerland","slovenia",
+            "hungary","luxembourg"
+        ],
+        "jp_omio_bus": ["japan"],
+        "br_omio_bus": ["brazil"],
+    }
 }
+
+NO_FILTER_FOR_THESE_INTEGRATIONS=['jp_omio_bus','jp_omio_train']
