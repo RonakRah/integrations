@@ -12,19 +12,15 @@ SELECT
     t1.usage.bookingCountYearly AS bookingCountYearly,
     t1.usage.searchCountYearly AS searchCountYearly,
     t1.usage.usageFactor AS usageFactor,
-    rt.element.providerId AS provider_id,
-    providers.provider_name AS provider_name,
     t1.countryId,
     LOWER(t1.positionType) AS positionType,
     2 AS source_priority
-  FROM `centered-radius-89610.dwh_raw.torkin_position_v1` AS t1,
-    UNNEST(relatedTerminals.list) AS rt
-  LEFT JOIN centered-radius-89610.dwh_core.providers AS providers ON rt.element.providerid = providers.provider_id
+  FROM `centered-radius-89610.dwh_raw.torkin_position_v1` AS t1
 
    WHERE TRUE
          AND t1.deleted = FALSE
          AND positionType IN ('busStation','trainStation')
-    
+   GROUP BY ALL
     """
 TORKIN_COUNTRY_QUERY = f"""
 SELECT id,

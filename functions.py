@@ -1,6 +1,12 @@
+import numpy as np
+import pandas as pd
 from google.cloud import bigquery
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics.pairwise import haversine_distances
+
 from constants import NO_FILTER_FOR_THESE_INTEGRATIONS,INTEGRATION_COUNTRY_MODE_MAPPING_DICT
-from google.cloud import bigquery
+
+
 
 def get_data_from_dwh( project_id,query):
     client = bigquery.Client(project=project_id)
@@ -8,7 +14,7 @@ def get_data_from_dwh( project_id,query):
     df = client.query(query).to_dataframe()
     return df
 
-def filter_positions(df, mode, integration):
+def filter_positions_by_factors(df, mode, integration):
     if integration in NO_FILTER_FOR_THESE_INTEGRATIONS:
         return df
 
@@ -27,40 +33,52 @@ def filter_positions(df, mode, integration):
     else:
         return df[df["usageFactor"] > 0]
 
-import pandas as pd
+def cluster_positions(df):
+    coords_rad = np.radians(df[["latitude", "longitude"]].to_numpy())
 
-def process_positions_by_mode(df, mode):
+    # 2) compute pairwise haversine distances in meters
+    earth_radius_m = 6371000
+    dist_matrix_m = haversine_distances(coords_rad) * earth_radius_m
 
-    #  integrations by mode
-    integrations_for_travel_mode = list(
-        INTEGRATION_COUNTRY_MODE_MAPPING_DICT[mode].keys()
+    # 3) cluster so that max distance inside each cluster is <= 30 m
+    clustering = AgglomerativeClustering(
+        n_clusters=None,
+        metric="precomputed",
+        linkage="complete",
+        distance_threshold=30
     )
-    # filter by mode (train / bus)
-    positions = df[
-        df["positionType"].str.startswith(mode, na=False)
-    ]
+
+    df["cluster_id"] = clustering.fit_predict(dist_matrix_m)
+
+    df["keep_flag"] = (
+           df["usageFactor"] ==
+            df.groupby("cluster_id")["usageFactor"].transform("max")
+    )
+    df = df.sort_values(["cluster_id", "stop_id"])
+    return df
+
+def filter_positions(df, mode,integrations):
 
     results = {}
 
+    for integration in integrations:
+        # allowed countries
+        allowed_countries = INTEGRATION_COUNTRY_MODE_MAPPING_DICT[mode][integration]
 
-
-    for integration in integrations_for_travel_mode:
-        countries = INTEGRATION_COUNTRY_MODE_MAPPING_DICT[mode][integration]
-
-        positions_by_countries = positions[
-            positions["country_name"].isin(countries)
+        # only positions for those countries
+        positions_by_countries = df[
+            df["country_name"].isin(allowed_countries)
         ]
 
-        filtered_df = filter_positions(
-            df=positions_by_countries,
-            mode=mode,
-            integration=integration
-        )
+        filtered_by_factor = filter_positions_by_factors( df=positions_by_countries,
+                                                    mode=mode,
+                                                    integration=integration
+                                                )
 
-        # keep integration info
+        filtered_by_clustering = cluster_positions(df=filtered_by_factor)
 
-        filtered_df["integration"] = integration
+        filtered_by_clustering["integration"] = integration
 
-        results[integration] = filtered_df
+        results[integration] = filtered_by_clustering
 
     return pd.concat(results, ignore_index=True)
