@@ -1,7 +1,6 @@
-from google.cloud import bigquery
-import pandas as pd
+
 from functions import get_data_from_dwh,filter_positions
-from constants import TORKIN_POSITIONS_PROJECT_ID,TORKIN_POSITIONS_QUERY,TORKIN_COUNTRY_QUERY
+from constants import TORKIN_POSITIONS_PROJECT_ID,TORKIN_POSITIONS_QUERY
 from constants import INTEGRATION_COUNTRY_MODE_MAPPING_DICT,NO_FILTER_FOR_THESE_INTEGRATIONS
 
 
@@ -13,24 +12,24 @@ if __name__ == '__main__':
     torkin_positions_df = get_data_from_dwh(project_id=TORKIN_POSITIONS_PROJECT_ID,
                                             query= TORKIN_POSITIONS_QUERY
                                            )
-    torkin_country_df = get_data_from_dwh(project_id=TORKIN_POSITIONS_PROJECT_ID,
-                                          query=TORKIN_COUNTRY_QUERY)
-
-
-    join_positions_with_country = torkin_positions_df.merge(
-                                                            torkin_country_df,
-                                                            how="left",
-                                                            left_on="countryId",
-                                                            right_on="id"
-                                                        ).drop(columns='id')
+    # torkin_country_df = get_data_from_dwh(project_id=TORKIN_POSITIONS_PROJECT_ID,
+    #                                       query=TORKIN_COUNTRY_QUERY)
+    #
+    #
+    # join_positions_with_country = torkin_positions_df.merge(
+    #                                                         torkin_country_df,
+    #                                                         how="left",
+    #                                                         left_on="countryId",
+    #                                                         right_on="id"
+    #                                                     ).drop(columns='id')
 
     travel_modes = list(INTEGRATION_COUNTRY_MODE_MAPPING_DICT.keys())
     all_modes_results = {}
     for mode in travel_modes:
         print(mode)
         # filter station type by mode (train / bus)
-        positions_by_mode = join_positions_with_country[
-            join_positions_with_country["positionType"].str.startswith(mode, na=False)]
+        positions_by_mode = torkin_positions_df[
+            torkin_positions_df["positionType"].str.startswith(mode, na=False)]
 
         # integrations by mode
         integrations_for_travel_mode = list(
@@ -39,7 +38,7 @@ if __name__ == '__main__':
 
         filtered_positions = filter_positions(positions_by_mode,mode,integrations_for_travel_mode)
         all_modes_results[mode] = filtered_positions
-        print()
+    print()
 
 
 

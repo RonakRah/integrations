@@ -9,13 +9,18 @@ from constants import NO_FILTER_FOR_THESE_INTEGRATIONS,INTEGRATION_COUNTRY_MODE_
 
 
 def get_data_from_dwh( project_id,query):
+    print(fr"loading data")
     client = bigquery.Client(project=project_id)
 
     df = client.query(query).to_dataframe()
     return df
 
 def filter_positions_by_factors(df, mode, integration):
+    print(f"mode:{mode} integration: {integration} is in filtering by factors process...")
     if integration in NO_FILTER_FOR_THESE_INTEGRATIONS:
+
+
+
         return df
 
     if mode == "train":
@@ -34,18 +39,19 @@ def filter_positions_by_factors(df, mode, integration):
         return df[df["usageFactor"] > 0]
 
 def cluster_positions(df):
+
     coords_rad = np.radians(df[["latitude", "longitude"]].to_numpy())
 
     # 2) compute pairwise haversine distances in meters
     earth_radius_m = 6371000
     dist_matrix_m = haversine_distances(coords_rad) * earth_radius_m
 
-    # 3) cluster so that max distance inside each cluster is <= 30 m
+    # 3) cluster so that max distance inside each cluster is <= 150 m
     clustering = AgglomerativeClustering(
         n_clusters=None,
         metric="precomputed",
         linkage="complete",
-        distance_threshold=30
+        distance_threshold=120
     )
 
     df["cluster_id"] = clustering.fit_predict(dist_matrix_m)
@@ -74,7 +80,7 @@ def filter_positions(df, mode,integrations):
                                                     mode=mode,
                                                     integration=integration
                                                 )
-
+        print(f" statrt clustering for -> mode:{mode} integration: {integration}")
         filtered_by_clustering = cluster_positions(df=filtered_by_factor)
 
         filtered_by_clustering["integration"] = integration
@@ -82,3 +88,5 @@ def filter_positions(df, mode,integrations):
         results[integration] = filtered_by_clustering
 
     return pd.concat(results, ignore_index=True)
+
+

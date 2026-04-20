@@ -4,6 +4,7 @@ TORKIN_POSITIONS_DATASET_ID='dwh_raw'
 TORKIN_POSITIONS_TABLE_NAME ='torkin_position_v1'
 
 TORKIN_POSITIONS_QUERY = f"""
+WITH torkin_positions AS (
 SELECT
     t1.id AS stop_id,
     t1.defaultName AS stop_name,
@@ -14,20 +15,61 @@ SELECT
     t1.usage.usageFactor AS usageFactor,
     t1.countryId,
     LOWER(t1.positionType) AS positionType,
+    rt.element.providerId AS provider_id,
     2 AS source_priority
-  FROM `centered-radius-89610.dwh_raw.torkin_position_v1` AS t1
-
-   WHERE TRUE
+  FROM `centered-radius-89610.dwh_raw.torkin_position_v1` AS t1,
+  UNNEST(relatedTerminals.list) AS rt
+  WHERE TRUE
          AND t1.deleted = FALSE
          AND positionType IN ('busStation','trainStation')
+      
    GROUP BY ALL
-    """
-TORKIN_COUNTRY_QUERY = f"""
-SELECT id,
-         LOWER(name) AS country_name,
+   )
+   , torkin_countries AS (
+  SELECT id,
+         LOWER(name) AS name,
          continentname
-  FROM`centered-radius-89610.dwh_raw.torkin_country_v1`
-"""
+  FROM`centered-radius-89610.dwh_raw.torkin_country_v1` 
+
+)
+,providers AS (
+SELECT DISTINCT
+       provider_id,
+       provider_name
+FROM centered-radius-89610.dwh_core.providers 
+)
+,google_provider_restriction AS (
+SELECT
+  
+    LOWER(provider) AS provider
+    FROM `centered-radius-89610.dwh_raw.cms_partner_restrictions`,
+    UNNEST(JSON_VALUE_ARRAY(providers_list)) AS provider
+    WHERE partner_id = 'google'
+)
+,torkin_positions_with_allowed_providers AS (
+     SELECT tp.*
+     FROM torkin_positions AS tp
+     LEFT JOIN providers AS pro ON tp.provider_id = pro.provider_id
+     WHERE LOWER(pro.provider_name) IN (SELECT provider FROM google_provider_restriction)
+)
+,join_positions_with_countries AS (
+SELECT ts.stop_id,
+       ts.stop_name,
+       ts.positionType,
+       ts.latitude,
+       ts.longitude,
+       tc.name AS country_name,
+       ts.bookingCountYearly,
+       ts.searchCountYearly,
+       ts.usageFactor,
+       ts.source_priority
+FROM  torkin_positions_with_allowed_providers AS ts
+LEFT JOIN torkin_countries AS tc ON ts.countryId = tc.id
+)
+SELECT *
+FROM join_positions_with_countries
+GROUP BY ALL
+    """
 
 
 INTEGRATION_COUNTRY_MODE_MAPPING_DICT = {
