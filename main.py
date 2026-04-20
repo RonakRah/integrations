@@ -12,16 +12,7 @@ if __name__ == '__main__':
     torkin_positions_df = get_data_from_dwh(project_id=TORKIN_POSITIONS_PROJECT_ID,
                                             query= TORKIN_POSITIONS_QUERY
                                            )
-    # torkin_country_df = get_data_from_dwh(project_id=TORKIN_POSITIONS_PROJECT_ID,
-    #                                       query=TORKIN_COUNTRY_QUERY)
-    #
-    #
-    # join_positions_with_country = torkin_positions_df.merge(
-    #                                                         torkin_country_df,
-    #                                                         how="left",
-    #                                                         left_on="countryId",
-    #                                                         right_on="id"
-    #                                                     ).drop(columns='id')
+
 
     travel_modes = list(INTEGRATION_COUNTRY_MODE_MAPPING_DICT.keys())
     all_modes_results = {}

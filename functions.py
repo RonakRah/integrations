@@ -78,10 +78,13 @@ def filter_positions(df, mode,integrations):
 
         filtered_by_factor = filter_positions_by_factors( df=positions_by_countries,
                                                     mode=mode,
-                                                    integration=integration
-                                                )
-        print(f" statrt clustering for -> mode:{mode} integration: {integration}")
-        filtered_by_clustering = cluster_positions(df=filtered_by_factor)
+                                                    integration=integration)
+        if mode == "train":
+
+            print(f" statrt clustering for -> mode:{mode} integration: {integration}")
+            filtered_by_clustering = cluster_positions(df=filtered_by_factor)
+        else:
+            filtered_by_clustering = filtered_by_factor
 
         filtered_by_clustering["integration"] = integration
 
