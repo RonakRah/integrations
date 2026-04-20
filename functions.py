@@ -39,6 +39,17 @@ def filter_positions_by_factors(df, mode, integration):
         return df[df["usageFactor"] > 0]
 
 def cluster_positions(df):
+    if df.empty:
+        df = df.copy()
+        df["cluster_id"] = pd.Series(dtype="int64")
+        df["keep_flag"] = pd.Series(dtype="bool")
+        return df
+
+    if len(df) == 1:
+        df = df.copy()
+        df["cluster_id"] = 0
+        df["keep_flag"] = True
+        return df
 
     coords_rad = np.radians(df[["latitude", "longitude"]].to_numpy())
 
@@ -91,3 +102,30 @@ def filter_positions(df, mode,integrations):
     return pd.concat(results, ignore_index=True)
 
 
+def write_dataframe_to_bigquery(df, project_id, dataset_id, table_name):
+    print(f"writing {len(df)} rows to {project_id}.{dataset_id}.{table_name}")
+    client = bigquery.Client(project=project_id)
+    table_id = f"{project_id}.{dataset_id}.{table_name}"
+    job_config = bigquery.LoadJobConfig(
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+        create_disposition=bigquery.CreateDisposition.CREATE_IF_NEEDED,
+        schema=[
+            bigquery.SchemaField("stop_id", "INT64"),
+            bigquery.SchemaField("stop_name", "STRING"),
+            bigquery.SchemaField("positionType", "STRING"),
+            bigquery.SchemaField("latitude", "FLOAT64"),
+            bigquery.SchemaField("longitude", "FLOAT64"),
+            bigquery.SchemaField("country_name", "STRING"),
+            bigquery.SchemaField("bookingCountYearly", "INT64"),
+            bigquery.SchemaField("searchCountYearly", "INT64"),
+            bigquery.SchemaField("usageFactor", "FLOAT64"),
+            bigquery.SchemaField("source_priority", "INT64"),
+            bigquery.SchemaField("cluster_id", "INT64"),
+            bigquery.SchemaField("keep_flag", "BOOL"),
+            bigquery.SchemaField("integration", "STRING"),
+            bigquery.SchemaField("mode", "STRING"),
+        ],
+    )
+    load_job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
+    load_job.result()
+    return table_id

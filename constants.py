@@ -2,6 +2,25 @@
 TORKIN_POSITIONS_PROJECT_ID = "centered-radius-89610"
 TORKIN_POSITIONS_DATASET_ID='dwh_raw'
 TORKIN_POSITIONS_TABLE_NAME ='torkin_position_v1'
+OUTPUT_PROJECT_ID = "centered-radius-89610"
+OUTPUT_DATASET_ID = "b2b"
+OUTPUT_TABLE_NAME = "gtw_integrations_and_positions"
+FINAL_OUTPUT_COLUMNS = [
+    "stop_id",
+    "stop_name",
+    "positionType",
+    "latitude",
+    "longitude",
+    "country_name",
+    "bookingCountYearly",
+    "searchCountYearly",
+    "usageFactor",
+    "source_priority",
+    "cluster_id",
+    "keep_flag",
+    "integration",
+    "mode",
+]
 
 TORKIN_POSITIONS_QUERY = f"""
 WITH torkin_positions AS (
