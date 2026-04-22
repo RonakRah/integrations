@@ -1,9 +1,9 @@
 import pandas as pd
 
-from functions import get_data_from_dwh, filter_positions, write_dataframe_to_bigquery
+from functions import get_data_from_dwh, filter_positions, export_main_results_to_dwh
 from constants import TORKIN_POSITIONS_PROJECT_ID, TORKIN_POSITIONS_QUERY
 from constants import INTEGRATION_COUNTRY_MODE_MAPPING_DICT
-from constants import OUTPUT_PROJECT_ID, OUTPUT_DATASET_ID, OUTPUT_TABLE_NAME, FINAL_OUTPUT_COLUMNS
+from constants import FINAL_OUTPUT_COLUMNS
 from constants import INTEGRATIONS_AND_THEIR_PROVIDERS_QUERY,INTEGRATIONS_AND_THEIR_PROVIDERS_PROJECT_ID
 
 
@@ -41,16 +41,5 @@ def main():
         raise ValueError("No results found: all_modes_results is empty")
 
     final_df = pd.concat(all_modes_results, ignore_index=True)
-    return final_df.reindex(columns=FINAL_OUTPUT_COLUMNS)
-
-
-
-def export_main_results():
-    final_df = main()
-    table_id = write_dataframe_to_bigquery(
-        df=final_df,
-        project_id=OUTPUT_PROJECT_ID,
-        dataset_id=OUTPUT_DATASET_ID,
-        table_name=OUTPUT_TABLE_NAME,
-    )
-    return table_id
+    final_df = final_df.reindex(columns=FINAL_OUTPUT_COLUMNS)
+    return export_main_results_to_dwh(final_df)

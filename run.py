@@ -1,5 +1,5 @@
-from main import export_main_results
+from main import main
 
 
 if __name__ == "__main__":
-    export_main_results()
+    main()

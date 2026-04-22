@@ -5,6 +5,7 @@ from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics.pairwise import haversine_distances
 
 from constants import NO_FILTER_FOR_THESE_INTEGRATIONS,INTEGRATION_COUNTRY_MODE_MAPPING_DICT
+from constants import OUTPUT_PROJECT_ID, OUTPUT_DATASET_ID, OUTPUT_TABLE_NAME
 
 
 
@@ -127,3 +128,12 @@ def write_dataframe_to_bigquery(df, project_id, dataset_id, table_name):
     load_job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
     load_job.result()
     return table_id
+
+
+def export_main_results_to_dwh(df):
+    return write_dataframe_to_bigquery(
+        df=df,
+        project_id=OUTPUT_PROJECT_ID,
+        dataset_id=OUTPUT_DATASET_ID,
+        table_name=OUTPUT_TABLE_NAME,
+    )
