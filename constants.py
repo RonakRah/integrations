@@ -6,6 +6,7 @@ TORKIN_POSITIONS_TABLE_NAME ='torkin_position_v1'
 OUTPUT_PROJECT_ID = "centered-radius-89610"
 OUTPUT_DATASET_ID = "b2b"
 OUTPUT_TABLE_NAME = "gtw_integrations_and_positions"
+MANUAL_OUTPUT_FILE = "gtw_integrations_and_positions.xlsx"
 FINAL_OUTPUT_COLUMNS = [
     "stop_id",
     "stop_name",
@@ -20,6 +21,7 @@ FINAL_OUTPUT_COLUMNS = [
     "cluster_id",
     "keep_flag",
     "integration",
+
 ]
 
 TORKIN_POSITIONS_QUERY = f"""

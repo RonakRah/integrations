@@ -1,13 +1,18 @@
 import pandas as pd
 
-from functions import get_data_from_dwh, filter_positions, export_main_results_to_dwh
+from functions import (
+    export_main_results_to_dwh,
+    export_main_results_to_excel,
+    filter_positions,
+    get_data_from_dwh,
+)
 from constants import TORKIN_POSITIONS_PROJECT_ID, TORKIN_POSITIONS_QUERY
 from constants import INTEGRATION_COUNTRY_MODE_MAPPING_DICT
-from constants import FINAL_OUTPUT_COLUMNS
+from constants import FINAL_OUTPUT_COLUMNS, MANUAL_OUTPUT_FILE
 from constants import INTEGRATIONS_AND_THEIR_PROVIDERS_QUERY,INTEGRATIONS_AND_THEIR_PROVIDERS_PROJECT_ID
 
 
-def main():
+def main(MANUAL_RUN=True):
     # data loading
     torkin_positions_df = get_data_from_dwh(
         project_id=TORKIN_POSITIONS_PROJECT_ID,
@@ -42,4 +47,6 @@ def main():
 
     final_df = pd.concat(all_modes_results, ignore_index=True)
     final_df = final_df.reindex(columns=FINAL_OUTPUT_COLUMNS)
+    if MANUAL_RUN:
+        return export_main_results_to_excel(final_df, MANUAL_OUTPUT_FILE)
     return export_main_results_to_dwh(final_df)

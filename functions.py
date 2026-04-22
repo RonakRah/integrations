@@ -137,3 +137,9 @@ def export_main_results_to_dwh(df):
         dataset_id=OUTPUT_DATASET_ID,
         table_name=OUTPUT_TABLE_NAME,
     )
+
+
+def export_main_results_to_excel(df, file_path):
+    print(f"writing {len(df)} rows to {file_path}")
+    df.to_excel(file_path, index=False)
+    return file_path
