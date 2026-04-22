@@ -19,8 +19,6 @@ def filter_positions_by_factors(df, mode, integration):
     print(f"mode:{mode} integration: {integration} is in filtering by factors process...")
     if integration in NO_FILTER_FOR_THESE_INTEGRATIONS:
 
-
-
         return df
 
     if mode == "train":
@@ -40,10 +38,7 @@ def filter_positions_by_factors(df, mode, integration):
 
 def cluster_positions(df):
     if df.empty:
-        df = df.copy()
-        df["cluster_id"] = pd.Series(dtype="int64")
-        df["keep_flag"] = pd.Series(dtype="bool")
-        return df
+        raise ValueError("Input DataFrame for clustering is empty")
 
     if len(df) == 1:
         df = df.copy()
@@ -74,19 +69,22 @@ def cluster_positions(df):
     df = df.sort_values(["cluster_id", "stop_id"])
     return df
 
-def filter_positions(df, mode,integrations):
+def filter_positions(df,integration_providers, mode,integrations):
 
     results = {}
 
+
     for integration in integrations:
+
         # allowed countries
         allowed_countries = INTEGRATION_COUNTRY_MODE_MAPPING_DICT[mode][integration]
-
+        allowed_providers = integration_providers.loc[integration_providers["integration"]==integration,"service_provider"].to_list()
         # only positions for those countries
-        positions_by_countries = df[
+        positions_by_allowed_countries_and_providers = df[
             df["country_name"].isin(allowed_countries)
+            & df["provider_name"].isin(allowed_providers)
         ]
-
+        positions_by_countries = positions_by_allowed_countries_and_providers.drop(columns=["provider_name"]).drop_duplicates().reset_index(drop=True)
         filtered_by_factor = filter_positions_by_factors( df=positions_by_countries,
                                                     mode=mode,
                                                     integration=integration)

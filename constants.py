@@ -1,5 +1,6 @@
 
 TORKIN_POSITIONS_PROJECT_ID = "centered-radius-89610"
+INTEGRATIONS_AND_THEIR_PROVIDERS_PROJECT_ID = "centered-radius-89610"
 TORKIN_POSITIONS_DATASET_ID='dwh_raw'
 TORKIN_POSITIONS_TABLE_NAME ='torkin_position_v1'
 OUTPUT_PROJECT_ID = "centered-radius-89610"
@@ -19,7 +20,6 @@ FINAL_OUTPUT_COLUMNS = [
     "cluster_id",
     "keep_flag",
     "integration",
-    "mode",
 ]
 
 TORKIN_POSITIONS_QUERY = f"""
@@ -54,7 +54,7 @@ SELECT
 ,providers AS (
 SELECT DISTINCT
        provider_id,
-       provider_name
+       LOWER(provider_name) AS provider_name,
 FROM centered-radius-89610.dwh_core.providers 
 )
 ,google_provider_restriction AS (
@@ -65,8 +65,10 @@ SELECT
     UNNEST(JSON_VALUE_ARRAY(providers_list)) AS provider
     WHERE partner_id = 'google'
 )
+
 ,torkin_positions_with_allowed_providers AS (
-     SELECT tp.*
+     SELECT tp.*,
+            pro.provider_name
      FROM torkin_positions AS tp
      LEFT JOIN providers AS pro ON tp.provider_id = pro.provider_id
      WHERE LOWER(pro.provider_name) IN (SELECT provider FROM google_provider_restriction)
@@ -74,6 +76,7 @@ SELECT
 ,join_positions_with_countries AS (
 SELECT ts.stop_id,
        ts.stop_name,
+       ts.provider_name,
        ts.positionType,
        ts.latitude,
        ts.longitude,
@@ -89,7 +92,11 @@ SELECT *
 FROM join_positions_with_countries
 GROUP BY ALL
     """
-
+INTEGRATIONS_AND_THEIR_PROVIDERS_QUERY = f"""
+ SELECT LOWER(integration) AS integration,
+        LOWER(service_provider) AS service_provider,
+ FROM `centered-radius-89610.b2b.gtw_integrations_with_allowed_providers`
+"""
 
 INTEGRATION_COUNTRY_MODE_MAPPING_DICT = {
     "train": {
