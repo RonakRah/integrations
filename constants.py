@@ -5,7 +5,7 @@ TORKIN_POSITIONS_DATASET_ID='dwh_raw'
 TORKIN_POSITIONS_TABLE_NAME ='torkin_position_v1'
 OUTPUT_PROJECT_ID = "centered-radius-89610"
 OUTPUT_DATASET_ID = "b2b"
-OUTPUT_TABLE_NAME = "gtw_integrations_and_positions"
+OUTPUT_TABLE_NAME = "gtw_positions"
 MANUAL_OUTPUT_FILE = "gtw_integrations_and_positions.xlsx"
 FINAL_OUTPUT_COLUMNS = [
     "stop_id",
@@ -43,25 +43,25 @@ SELECT
   WHERE TRUE
          AND t1.deleted = FALSE
          AND positionType IN ('busStation','trainStation')
-      
+
    GROUP BY ALL
    )
    , torkin_countries AS (
   SELECT id,
          LOWER(name) AS name,
          continentname
-  FROM`centered-radius-89610.dwh_raw.torkin_country_v1` 
+  FROM`centered-radius-89610.dwh_raw.torkin_country_v1`
 
 )
 ,providers AS (
 SELECT DISTINCT
        provider_id,
        LOWER(provider_name) AS provider_name,
-FROM centered-radius-89610.dwh_core.providers 
+FROM centered-radius-89610.dwh_core.providers
 )
 ,google_provider_restriction AS (
 SELECT
-  
+
     LOWER(provider) AS provider
     FROM `centered-radius-89610.dwh_raw.cms_partner_restrictions`,
     UNNEST(JSON_VALUE_ARRAY(providers_list)) AS provider
@@ -97,7 +97,8 @@ GROUP BY ALL
 INTEGRATIONS_AND_THEIR_PROVIDERS_QUERY = f"""
  SELECT LOWER(integration) AS integration,
         LOWER(service_provider) AS service_provider,
- FROM `centered-radius-89610.b2b.gtw_integrations_with_allowed_providers`
+ FROM `centered-radius-89610.b2b_gtw.gtw_integrations_with_allowed_providers`
+
 """
 
 INTEGRATION_COUNTRY_MODE_MAPPING_DICT = {

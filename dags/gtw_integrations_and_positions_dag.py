@@ -1,30 +1,31 @@
 from datetime import datetime
-from pathlib import Path
-from zoneinfo import ZoneInfo
-import sys
 
-from airflow.decorators import dag, task
+from airflow.models import DAG
+from airflow.operators.python_operator import PythonOperator
 
+from bi.common import defaults
+from bi.dag_resources.integrations.main import main
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+DAG_NAME = "gtw_integrations_and_positions_dag"
+default_args = defaults.defaults(datetime(2026, 1, 31))
 
-from main import main
-
-@dag(
-    dag_id="gtw_integrations_and_positions",
-    schedule="0 10 * * *",
-    start_date=datetime(2026, 4, 22, tzinfo=ZoneInfo("Europe/Prague")),
+dag = DAG(
+    DAG_NAME,
+    description="Generate GTW integrations and positions output",
+    default_args=default_args,
+    schedule_interval="0 10 * * *",
+    max_active_runs=1,
     catchup=False,
     tags=["integrations", "bigquery"],
 )
-def gtw_integrations_and_positions_dag():
-    @task
-    def run_main():
-        return main()
-
-    run_main()
 
 
-gtw_integrations_and_positions = gtw_integrations_and_positions_dag()
+def run_gtw_integrations_and_positions():
+    return main(MANUAL_RUN=False)
+
+
+run_gtw_integrations_and_positions_task = PythonOperator(
+    task_id="run_gtw_integrations_and_positions",
+    python_callable=run_gtw_integrations_and_positions,
+    dag=dag,
+)

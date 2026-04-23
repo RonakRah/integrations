@@ -4,15 +4,20 @@ from google.cloud import bigquery
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics.pairwise import haversine_distances
 
-from constants import NO_FILTER_FOR_THESE_INTEGRATIONS,INTEGRATION_COUNTRY_MODE_MAPPING_DICT
-from constants import OUTPUT_PROJECT_ID, OUTPUT_DATASET_ID, OUTPUT_TABLE_NAME
-
-
+from bi.dag_resources.integrations.constants import NO_FILTER_FOR_THESE_INTEGRATIONS,INTEGRATION_COUNTRY_MODE_MAPPING_DICT
+from bi.dag_resources.integrations.constants import OUTPUT_PROJECT_ID, OUTPUT_DATASET_ID, OUTPUT_TABLE_NAME
+from bi.common.airflow_functions import get_google_service_account_path
+from google.oauth2 import service_account
 
 def get_data_from_dwh( project_id,query):
     print(fr"loading data")
-    client = bigquery.Client(project=project_id)
+    # client = bigquery.Client(project=project_id)
+    GCLOUD_SERVICE_ACCOUNT_PATH = get_google_service_account_path()
+    credentials = service_account.Credentials.from_service_account_file(
+        f"{GCLOUD_SERVICE_ACCOUNT_PATH}"
+    )
 
+    client = bigquery.Client(project=project_id, credentials=credentials)
     df = client.query(query).to_dataframe()
     return df
 
@@ -51,9 +56,11 @@ def cluster_positions(df):
 
     # 2) compute pairwise haversine distances in meters
     earth_radius_m = 6371000
+    print("starting haversine_distances")
     dist_matrix_m = haversine_distances(coords_rad) * earth_radius_m
 
     # 3) cluster so that max distance inside each cluster is <= 150 m
+    print("starting AgglomerativeClustering")
     clustering = AgglomerativeClustering(
         n_clusters=None,
         metric="precomputed",
@@ -61,6 +68,7 @@ def cluster_positions(df):
         distance_threshold=120
     )
 
+    print("starting fit_predict")
     df["cluster_id"] = clustering.fit_predict(dist_matrix_m)
 
     df["keep_flag"] = (
