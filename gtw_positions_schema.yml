@@ -1,0 +1,43 @@
+fields:
+  - name: stopId
+    type: INTEGER
+    mode: NULLABLE
+  - name: stopName
+    type: STRING
+    mode: NULLABLE
+  - name: positionType
+    type: STRING
+    mode: NULLABLE
+  - name: latitude
+    type: FLOAT
+    mode: NULLABLE
+  - name: longitude
+    type: FLOAT
+    mode: NULLABLE
+  - name: countryName
+    type: STRING
+    mode: NULLABLE
+  - name: bookingCountYearly
+    type: INTEGER
+    mode: NULLABLE
+  - name: searchCountYearly
+    type: INTEGER
+    mode: NULLABLE
+  - name: usageFactor
+    type: FLOAT
+    mode: NULLABLE
+  - name: sourcePriority
+    type: INTEGER
+    mode: NULLABLE
+  - name: clusterId
+    type: INTEGER
+    mode: NULLABLE
+  - name: keepFlag
+    type: BOOLEAN
+    mode: NULLABLE
+  - name: integration
+    type: STRING
+    mode: NULLABLE
+  - name: updateAt
+    type: TIMESTAMP
+    mode: NULLABLE
