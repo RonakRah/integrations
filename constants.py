@@ -2,12 +2,12 @@
 TORKIN_POSITIONS_PROJECT_ID = "centered-radius-89610"
 INTEGRATIONS_AND_THEIR_PROVIDERS_PROJECT_ID = "centered-radius-89610"
 TORKIN_POSITIONS_DATASET_ID='dwh_raw'
-TORKIN_POSITIONS_TABLE_NAME ='torkin_position_v1'
+TORKIN_POSITIONS_TABLE_NAME ='torkin_position'
 OUTPUT_PROJECT_ID = "centered-radius-89610"
-OUTPUT_DATASET_ID = "b2b"
+OUTPUT_DATASET_ID = "b2b_gtw"
 OUTPUT_TABLE_NAME = "gtw_positions"
 MANUAL_OUTPUT_FILE = "gtw_integrations_and_positions.xlsx"
-FINAL_OUTPUT_COLUMNS = [
+FINAL_OUTPUT_SOURCE_COLUMNS = [
     "stop_id",
     "stop_name",
     "positionType",
@@ -21,13 +21,36 @@ FINAL_OUTPUT_COLUMNS = [
     "cluster_id",
     "keep_flag",
     "integration",
-
+]
+FINAL_OUTPUT_RENAME_MAP = {
+    "stop_id": "stopId",
+    "stop_name": "stopName",
+    "country_name": "countryName",
+    "source_priority": "sourcePriority",
+    "cluster_id": "clusterId",
+    "keep_flag": "keepFlag",
+}
+FINAL_OUTPUT_COLUMNS = [
+    "stopId",
+    "stopName",
+    "positionType",
+    "latitude",
+    "longitude",
+    "countryName",
+    "bookingCountYearly",
+    "searchCountYearly",
+    "usageFactor",
+    "sourcePriority",
+    "clusterId",
+    "keepFlag",
+    "integration",
+    "updateAt",
 ]
 
 TORKIN_POSITIONS_QUERY = f"""
 WITH torkin_positions AS (
 SELECT
-    t1.id AS stop_id,
+    CAST(t1.id AS INT64) AS stop_id,
     t1.defaultName AS stop_name,
     ROUND(t1.latitude, 6) AS latitude,
     ROUND(t1.longitude, 6) AS longitude,
@@ -62,10 +85,8 @@ FROM centered-radius-89610.dwh_core.providers
 ,google_provider_restriction AS (
 SELECT
 
-    LOWER(provider) AS provider
-    FROM `centered-radius-89610.dwh_raw.cms_partner_restrictions`,
-    UNNEST(JSON_VALUE_ARRAY(providers_list)) AS provider
-    WHERE partner_id = 'google'
+    LOWER(service_provider) AS provider
+    FROM centered-radius-89610.b2b_gtw.gtw_integrations_with_allowed_providers
 )
 
 ,torkin_positions_with_allowed_providers AS (
@@ -100,7 +121,44 @@ INTEGRATIONS_AND_THEIR_PROVIDERS_QUERY = f"""
  FROM `centered-radius-89610.b2b_gtw.gtw_integrations_with_allowed_providers`
 
 """
+QUERY_FOR_POTENTIAL_STOPS = f"""
 
+WITH  potential_stops AS (
+  SELECT
+    node_id  AS stop_id,
+    node_name AS stop_name,
+    ROUND(node_lat, 6) AS latitude,
+    ROUND(node_lng, 6) AS longitude,
+    CASE WHEN LOWER(input_type) LIKE '%bus%' THEN 'busstation'
+         WHEN LOWER(input_type) LIKE '%train%' THEN 'trainstation'
+    END AS positionType
+  FROM `centered-radius-89610.b2b_gtw.gtw_potential_stops`
+        
+)
+,potential_stations_joined_with_torkin AS (
+SELECT
+  CAST(potential.stop_id AS INT64) AS stop_id,
+  potential.stop_name,
+  LOWER(p.provider_name) AS provider_name,
+  potential.positionType,
+  potential.latitude,
+  potential.longitude,
+  LOWER(tc.name) AS country_name,
+  1 AS bookingCountYearly,
+  1 AS searchCountYearly,
+  1 AS usageFactor,
+  1 AS source_priority
+FROM potential_stops AS potential
+LEFT JOIN `centered-radius-89610.dwh_raw.torkin_position_v1` AS tp
+  ON CAST(potential.stop_id AS STRING)= tp.id
+ AND tp.deleted = FALSE
+LEFT JOIN UNNEST(tp.relatedTerminals.list) AS rt
+LEFT JOIN `centered-radius-89610.dwh_raw.torkin_country_v1` AS tc
+  ON tp.countryid = tc.id
+LEFT JOIN  `centered-radius-89610.dwh_core.providers` as p ON rt.element.providerId  = p.provider_id
+)
+SELECT * FROM potential_stations_joined_with_torkin
+"""
 INTEGRATION_COUNTRY_MODE_MAPPING_DICT = {
     "train": {
         "eu_omio": [
@@ -113,7 +171,11 @@ INTEGRATION_COUNTRY_MODE_MAPPING_DICT = {
         "uk_omio_nationalrail": ["united kingdom"],
         "uk_lner": ["united kingdom"],
         "pt_omio_comboios": ["portugal"],
-        "eu_omio_deutschebahn": ["germany"],
+
+        "eu_omio_deutschebahn": ["germany","italy","france","united kingdom","spain","austria",
+            "sweden","switzerland","czechia","poland","belgium","netherlands",
+            "hungary","denmark","slovakia","norway","finland","luxembourg",
+            "liechtenstein"],
         "us_omio": ["usa"],
     },
 
@@ -129,4 +191,4 @@ INTEGRATION_COUNTRY_MODE_MAPPING_DICT = {
     }
 }
 
-NO_FILTER_FOR_THESE_INTEGRATIONS=['jp_omio_bus','jp_omio_train']
+NO_FILTER_FOR_THESE_INTEGRATIONS=['jp_omio_bus','jp_omio_train','br_omio_bus']
