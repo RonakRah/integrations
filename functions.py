@@ -2,13 +2,13 @@ import numpy as np
 import pandas as pd
 import logging
 import sys
+import time
 from google.cloud import bigquery
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics.pairwise import haversine_distances
 
 from constants import NO_FILTER_FOR_THESE_INTEGRATIONS,INTEGRATION_COUNTRY_MODE_MAPPING_DICT
 from constants import OUTPUT_PROJECT_ID, OUTPUT_DATASET_ID, OUTPUT_TABLE_NAME
-from google.oauth2 import service_account
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
 logger = logging.getLogger(__name__)
@@ -32,7 +32,20 @@ logger = configure_logger(__name__)
 
 
 def get_bigquery_client(project_id: str, LOCAL: bool = True) -> bigquery.Client:
-    return bigquery.Client(project=project_id)
+    if LOCAL:
+        logger.info("Creating BigQuery client with local credentials")
+        return bigquery.Client(project=project_id)
+
+    from google.oauth2 import service_account
+
+    from bi.common.airflow_functions import get_google_service_account_path
+
+    logger.info("Creating BigQuery client with service-account credentials")
+    service_account_path = get_google_service_account_path()
+    credentials = service_account.Credentials.from_service_account_file(
+        service_account_path
+    )
+    return bigquery.Client(project=project_id, credentials=credentials)
 
 
 def get_default_table_schema():
@@ -58,17 +71,43 @@ def read_table_schema(schema_file: str | None):
     if schema_file:
         raise NotImplementedError("Custom schema_file loading is not implemented in this repo")
     return get_default_table_schema()
-def get_data_from_dwh( project_id,query):
-    # print(fr"loading data")
-    client = bigquery.Client(project=project_id)
-    # GCLOUD_SERVICE_ACCOUNT_PATH = get_google_service_account_path()
-    # credentials = service_account.Credentials.from_service_account_file(
-    #     f"{GCLOUD_SERVICE_ACCOUNT_PATH}"
-    # )
+def get_data_from_dwh(
+    project_id: str,
+    query: str,
+    LOCAL: bool = True,
+    job_config: bigquery.QueryJobConfig | None = None,
+    progress_label: str | None = None,
+    poll_interval_seconds: int = 30,
+) -> pd.DataFrame:
+    logger.info("Fetching data from BigQuery project=%s local=%s", project_id, LOCAL)
+    client = get_bigquery_client(project_id=project_id, LOCAL=LOCAL)
+    query_job = client.query(query, job_config=job_config)
+    label = progress_label or query_job.job_id
+    logger.info("Started BigQuery job %s for %s", query_job.job_id, label)
 
-    # client = bigquery.Client(project=project_id, credentials=credentials)
-    df = client.query(query).to_dataframe()
-    return df
+    started_at = time.monotonic()
+    while not query_job.done():
+        elapsed_seconds = int(time.monotonic() - started_at)
+        logger.info(
+            "Still running BigQuery job %s for %s elapsed_seconds=%s",
+            query_job.job_id,
+            label,
+            elapsed_seconds,
+        )
+        time.sleep(poll_interval_seconds)
+
+    dataframe = query_job.to_dataframe()
+    if {"from_id", "to_id"}.issubset(dataframe.columns):
+        route_count = dataframe[["from_id", "to_id"]].drop_duplicates().shape[0]
+        logger.info(
+            "Fetched %s rows from BigQuery route=%s",
+            len(dataframe),
+            route_count,
+        )
+        return dataframe
+
+    logger.info("Fetched %s rows from BigQuery", len(dataframe))
+    return dataframe
 
 def filter_positions_by_factors(df, mode, integration):
     print(f"mode:{mode} integration: {integration} is in filtering by factors process...")
@@ -196,7 +235,7 @@ def filter_positions(df,integration_providers, mode,integrations):
         )
 
 
-        # print(f" statrt clustering for -> mode:{mode} integration: {integration}")
+        print(f" statrt clustering for -> mode:{mode} integration: {integration}")
         filtered_by_clustering = cluster_positions(
             df=filtered_by_factor,
             mode=mode,
@@ -277,4 +316,5 @@ def export_dataframe_to_dwh(
     )
     # logger.info("Started dataframe load job %s", load_job.job_id)
     load_job.result()
+    print(f"Successfully exported {len(df)} rows to {table_id}")
     # logger.info("Loaded %s rows into %s", load_job.output_rows, table_id)
