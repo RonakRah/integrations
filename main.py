@@ -15,7 +15,7 @@ from constants import (
 from constants import TORKIN_POSITIONS_PROJECT_ID
 from constants import OUTPUT_PROJECT_ID, OUTPUT_DATASET_ID, OUTPUT_TABLE_NAME
 
-def main(MANUAL_RUN=False):
+def main(MANUAL_RUN=True):
     # data loading
     torkin_positions_df = get_data_from_dwh(
         project_id=TORKIN_POSITIONS_PROJECT_ID,
