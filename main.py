@@ -20,20 +20,19 @@ def main(MANUAL_RUN=True):
     torkin_positions_df = get_data_from_dwh(
         project_id=TORKIN_POSITIONS_PROJECT_ID,
         query=TORKIN_POSITIONS_QUERY,
-        LOCAL=MANUAL_RUN,
+
         progress_label="torkin_positions",
     )
     potential_stops = get_data_from_dwh(
         project_id=OUTPUT_PROJECT_ID,
         query=QUERY_FOR_POTENTIAL_STOPS,
-        LOCAL=MANUAL_RUN,
         progress_label="potential_stops",
     )
 
     all_stations = union_positions_and_potential_positions(stations=torkin_positions_df,potentials=potential_stops)
     integrations_and_providers_df = get_data_from_dwh(project_id=INTEGRATIONS_AND_THEIR_PROVIDERS_PROJECT_ID,
                                                       query=INTEGRATIONS_AND_THEIR_PROVIDERS_QUERY,
-                                                      LOCAL=MANUAL_RUN,
+
                                                       progress_label="integrations_and_providers")
 
 

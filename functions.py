@@ -32,20 +32,8 @@ logger = configure_logger(__name__)
 
 
 def get_bigquery_client(project_id: str, LOCAL: bool = True) -> bigquery.Client:
-    if LOCAL:
-        logger.info("Creating BigQuery client with local credentials")
-        return bigquery.Client(project=project_id)
-
-    from google.oauth2 import service_account
-
-    from bi.common.airflow_functions import get_google_service_account_path
-
-    logger.info("Creating BigQuery client with service-account credentials")
-    service_account_path = get_google_service_account_path()
-    credentials = service_account.Credentials.from_service_account_file(
-        service_account_path
-    )
-    return bigquery.Client(project=project_id, credentials=credentials)
+    logger.info("Creating BigQuery client with local credentials")
+    return bigquery.Client(project=project_id)
 
 
 def get_default_table_schema():
@@ -74,13 +62,12 @@ def read_table_schema(schema_file: str | None):
 def get_data_from_dwh(
     project_id: str,
     query: str,
-    LOCAL: bool = True,
     job_config: bigquery.QueryJobConfig | None = None,
     progress_label: str | None = None,
     poll_interval_seconds: int = 30,
 ) -> pd.DataFrame:
-    logger.info("Fetching data from BigQuery project=%s local=%s", project_id, LOCAL)
-    client = get_bigquery_client(project_id=project_id, LOCAL=LOCAL)
+    logger.info("Fetching data from BigQuery project=%s with local credentials", project_id)
+    client = get_bigquery_client(project_id=project_id)
     query_job = client.query(query, job_config=job_config)
     label = progress_label or query_job.job_id
     logger.info("Started BigQuery job %s for %s", query_job.job_id, label)
