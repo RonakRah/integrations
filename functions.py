@@ -208,6 +208,8 @@ def filter_positions(df,integration_providers, mode,integrations):
         ]
         positions_by_countries = positions_by_allowed_countries_and_providers.drop(columns=["provider_name"]).drop_duplicates().reset_index(drop=True)
         stops_before_factor_filter = positions_by_countries["stop_id"].nunique()
+
+        
         filtered_by_factor = filter_positions_by_factors( df=positions_by_countries,
                                                     mode=mode,
                                                     integration=integration)
@@ -221,6 +223,50 @@ def filter_positions(df,integration_providers, mode,integrations):
             f"from {stops_before_factor_filter} to {stops_after_factor_filter}"
         )
 
+
+        print(f" statrt clustering for -> mode:{mode} integration: {integration}")
+        filtered_by_clustering = cluster_positions(
+            df=filtered_by_factor,
+            mode=mode,
+            integration=integration,
+        )
+
+        filtered_by_clustering["integration"] = integration
+
+        results[integration] = filtered_by_clustering
+
+    return pd.concat(results, ignore_index=True)
+
+
+def filter_positions_and_find_comparison(new_positions, current_positions, integration_providers, mode, integrations):
+    results = {}
+
+    for integration in integrations:
+        # allowed countries
+        allowed_countries = INTEGRATION_COUNTRY_MODE_MAPPING_DICT[mode][integration]
+        allowed_providers = integration_providers.loc[
+            integration_providers["integration"] == integration, "service_provider"].to_list()
+        # only positions for those countries
+        positions_by_allowed_countries_and_providers = new_positions[
+            new_positions["country_name"].isin(allowed_countries)
+            & new_positions["provider_name"].isin(allowed_providers)
+            ]
+        positions_by_countries = positions_by_allowed_countries_and_providers.drop(
+            columns=["provider_name"]).drop_duplicates().reset_index(drop=True)
+        stops_before_factor_filter = positions_by_countries["stop_id"].nunique()
+
+        filtered_by_factor = filter_positions_by_factors(df=positions_by_countries,
+                                                         mode=mode,
+                                                         integration=integration)
+        stops_after_factor_filter = filtered_by_factor["stop_id"].nunique()
+        dropped_stops_by_factor_filter = (
+                stops_before_factor_filter - stops_after_factor_filter
+        )
+        print(
+            f"mode:{mode} integration:{integration} "
+            f"factor filter dropped {dropped_stops_by_factor_filter} stops "
+            f"from {stops_before_factor_filter} to {stops_after_factor_filter}"
+        )
 
         print(f" statrt clustering for -> mode:{mode} integration: {integration}")
         filtered_by_clustering = cluster_positions(

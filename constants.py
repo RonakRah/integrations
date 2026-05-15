@@ -159,6 +159,11 @@ LEFT JOIN  `centered-radius-89610.dwh_core.providers` as p ON rt.element.provide
 )
 SELECT * FROM potential_stations_joined_with_torkin
 """
+
+QUERY_CURRENT_GTW_POSITIONS = f"""
+SELECT *
+FROM centered-radius-89610.b2b_gtw.gtw_positions
+"""
 INTEGRATION_COUNTRY_MODE_MAPPING_DICT = {
     "train": {
         "eu_omio": [
