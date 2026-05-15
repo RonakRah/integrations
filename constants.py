@@ -163,6 +163,11 @@ SELECT * FROM potential_stations_joined_with_torkin
 QUERY_CURRENT_GTW_POSITIONS = f"""
 SELECT *
 FROM centered-radius-89610.b2b_gtw.gtw_positions
+WHERE (
+    positionType = 'trainstation'
+    AND keepFlag = TRUE
+)
+OR positionType = 'busstation'
 """
 INTEGRATION_COUNTRY_MODE_MAPPING_DICT = {
     "train": {
