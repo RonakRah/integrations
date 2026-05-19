@@ -473,10 +473,15 @@ def export_dataframe_to_dwh(
 def export_dataframe_to_google_sheet(df, spreadsheet_id, sheet_name):
     import subprocess
 
-    import google.auth
     from google.oauth2.credentials import Credentials
     from gspread.exceptions import APIError
     import gspread
+
+    try:
+        import google.colab
+        running_in_colab = True
+    except ImportError:
+        running_in_colab = False
 
     try:
         access_token = subprocess.check_output(
@@ -484,18 +489,19 @@ def export_dataframe_to_google_sheet(df, spreadsheet_id, sheet_name):
             stderr=subprocess.DEVNULL,
             text=True,
         ).strip()
-        credentials = Credentials(token=access_token)
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        try:
-            from google.colab import auth as colab_auth
-        except ImportError:
+    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+        if running_in_colab:
             raise RuntimeError(
-                "No gcloud user credential found. Run: "
-                "`gcloud auth login --enable-gdrive-access --force`."
-            )
-        else:
-            colab_auth.authenticate_user()
-            credentials, _ = google.auth.default()
+                "No Drive-enabled gcloud user token found in Colab. Run this cell, "
+                "finish the browser/code flow, then rerun the comparison: "
+                "`!gcloud auth login --enable-gdrive-access --no-browser --force`."
+            ) from exc
+        raise RuntimeError(
+            "No gcloud user credential found. Run: "
+            "`gcloud auth login --enable-gdrive-access --force`."
+        ) from exc
+
+    credentials = Credentials(token=access_token)
 
     client = gspread.authorize(credentials)
     try:
