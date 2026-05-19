@@ -16,8 +16,7 @@ from constants import (
 from constants import TORKIN_POSITIONS_PROJECT_ID
 from constants import (
     OUTPUT_PROJECT_ID, OUTPUT_DATASET_ID, OUTPUT_TABLE_NAME,
-    COMPARISON_OUTPUT_COLUMNS, COMPARISON_OUTPUT_FILE,
-    COMPARISON_SHEET_NAME, COMPARISON_SPREADSHEET_ID
+    COMPARISON_OUTPUT_COLUMNS, COMPARISON_SHEET_NAME, COMPARISON_SPREADSHEET_ID
 )
 
 def run_old_new_positions_comparison(MANUAL_RUN=True,TASK_TYPE='position_comparison'):
@@ -88,7 +87,6 @@ def run_old_new_positions_comparison(MANUAL_RUN=True,TASK_TYPE='position_compari
         & (final_comparison["dropped_reason"].astype(str).str.lower() != "none")
     ]
     final_comparison = final_comparison.reindex(columns=COMPARISON_OUTPUT_COLUMNS)
-    final_comparison.to_csv(COMPARISON_OUTPUT_FILE, index=False)
 
     return export_dataframe_to_google_sheet(
         df=final_comparison,

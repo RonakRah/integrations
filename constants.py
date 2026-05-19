@@ -9,7 +9,6 @@ OUTPUT_TABLE_NAME = "gtw_positions"
 MANUAL_OUTPUT_FILE = "gtw_integrations_and_positions.xlsx"
 COMPARISON_SPREADSHEET_ID = "1kelhwpBFzBcvqmI5Gj7BsJ3lTQ7D4MNvZbp_NmsFnaQ"
 COMPARISON_SHEET_NAME = "what will come new if we run the gtw positions"
-COMPARISON_OUTPUT_FILE = "gtw_positions_comparison.csv"
 COMPARISON_OUTPUT_COLUMNS = [
     "stopId",
     "stopName",
