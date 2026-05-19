@@ -161,13 +161,27 @@ SELECT * FROM potential_stations_joined_with_torkin
 """
 
 QUERY_CURRENT_GTW_POSITIONS = f"""
-SELECT *
-FROM centered-radius-89610.b2b_gtw.gtw_positions
-WHERE (
-    positionType = 'trainstation'
-    AND keepFlag = TRUE
+WITH current_gtw_positions AS (
+    SELECT *
+    FROM centered-radius-89610.b2b_gtw.gtw_positions
+    WHERE (
+        positionType = 'trainstation'
+        AND keepFlag = TRUE
+    )
+    OR positionType = 'busstation'
 )
-OR positionType = 'busstation'
+SELECT * EXCEPT(updateAt)
+FROM current_gtw_positions
+# SELECT
+#     current_gtw_positions.* EXCEPT(updateAt),
+#     LOWER(providers.provider_name) AS provider_name
+# FROM current_gtw_positions
+# LEFT JOIN `centered-radius-89610.dwh_raw.torkin_position_v1` AS torkin_positions
+#     ON CAST(current_gtw_positions.stopId AS STRING) = torkin_positions.id
+#     AND torkin_positions.deleted = FALSE
+# LEFT JOIN UNNEST(torkin_positions.relatedTerminals.list) AS related_terminal
+# LEFT JOIN `centered-radius-89610.dwh_core.providers` AS providers
+#     ON related_terminal.element.providerId = providers.provider_id
 """
 INTEGRATION_COUNTRY_MODE_MAPPING_DICT = {
     "train": {

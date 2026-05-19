@@ -238,6 +238,62 @@ def filter_positions(df,integration_providers, mode,integrations):
     return pd.concat(results, ignore_index=True)
 
 
+def find_dropped_provider_per_position(current_positions, new_positions):
+    current_keys = current_positions[
+        ["stopId", "countryName", "provider_name"]
+    ].rename(columns={"stopId": "stop_id","countryName":"country_name"}).drop_duplicates()
+
+    new_keys = new_positions[["stop_id","country_name" , "provider_name"]].copy()
+    new_keys = new_keys[
+        ["stop_id","country_name" , "provider_name"]
+    ].drop_duplicates()
+
+    dropped_by_provider = (
+        current_keys.merge(
+            new_keys,
+            on=["stop_id",  "provider_name"],
+            how="left",
+            indicator=True,
+        )
+        .query("_merge == 'left_only'")
+        .drop(columns="_merge")
+        .reset_index(drop=True)
+    )
+    dropped_by_provider["dropped_reason"] = "dropped_by_provider"
+    return dropped_by_provider
+
+
+def find_dropped_positions(current_positions, new_positions, dropped_reason):
+    new_keys = new_positions[
+        ["stop_id", "country_name"]
+    ].rename(
+        columns={"stop_id": "stopId", "country_name": "countryName"}
+    ).drop_duplicates()
+
+    current_positions_with_flag = (
+        current_positions.merge(
+            new_keys,
+            on=["stopId", "countryName"],
+            how="left",
+            indicator=True,
+        )
+        .reset_index(drop=True)
+    )
+    if "dropped_reason" not in current_positions_with_flag.columns:
+        current_positions_with_flag["dropped_reason"] = None
+
+    should_set_dropped_reason = (
+        (current_positions_with_flag["_merge"] == "left_only")
+        & current_positions_with_flag["dropped_reason"].isna()
+    )
+    current_positions_with_flag["dropped_reason"] = np.where(
+        should_set_dropped_reason,
+        dropped_reason,
+        current_positions_with_flag["dropped_reason"],
+    )
+    return current_positions_with_flag.drop(columns="_merge")
+
+
 def filter_positions_and_find_comparison(new_positions, current_positions, integration_providers, mode, integrations):
     results = {}
 
@@ -246,33 +302,58 @@ def filter_positions_and_find_comparison(new_positions, current_positions, integ
         allowed_countries = INTEGRATION_COUNTRY_MODE_MAPPING_DICT[mode][integration]
         allowed_providers = integration_providers.loc[
             integration_providers["integration"] == integration, "service_provider"].to_list()
-        # only positions for those countries
+
+        # only positions for those countries and providers (new)
         positions_by_allowed_countries_and_providers = new_positions[
-            new_positions["country_name"].isin(allowed_countries)
-            & new_positions["provider_name"].isin(allowed_providers)
+            (new_positions["country_name"].isin(allowed_countries))
+            & (new_positions["provider_name"].isin(allowed_providers))
             ]
+
         positions_by_countries = positions_by_allowed_countries_and_providers.drop(
             columns=["provider_name"]).drop_duplicates().reset_index(drop=True)
-        stops_before_factor_filter = positions_by_countries["stop_id"].nunique()
+
+        """--------------------- second check /provider drop/ ----------------------"""
+        # 2) dropped by provider
+        dropped_positions_by_provider = find_dropped_positions(
+            current_positions=current_positions[(current_positions["integration"] == integration)],
+            new_positions=positions_by_countries,
+            dropped_reason="dropped_by_provider",
+        )
+        """---------------------------------------------------------------------------"""
 
         filtered_by_factor = filter_positions_by_factors(df=positions_by_countries,
                                                          mode=mode,
                                                          integration=integration)
-        stops_after_factor_filter = filtered_by_factor["stop_id"].nunique()
-        dropped_stops_by_factor_filter = (
-                stops_before_factor_filter - stops_after_factor_filter
+
+        """--------------------- third check /factor drop/ ----------------------"""
+
+        # 3) dropped by factor
+        dropped_positions_by_factor = find_dropped_positions(
+            current_positions=dropped_positions_by_provider,
+            new_positions=filtered_by_factor,
+            dropped_reason="dropped_by_factor",
         )
-        print(
-            f"mode:{mode} integration:{integration} "
-            f"factor filter dropped {dropped_stops_by_factor_filter} stops "
-            f"from {stops_before_factor_filter} to {stops_after_factor_filter}"
-        )
+        """---------------------------------------------------------------------"""
+
 
         print(f" statrt clustering for -> mode:{mode} integration: {integration}")
         filtered_by_clustering = cluster_positions(
             df=filtered_by_factor,
             mode=mode,
             integration=integration,
+        )
+        if mode == "train":
+            filtered_by_clustering = filtered_by_clustering[
+                filtered_by_clustering["keep_flag"].eq(True)
+            ].copy()
+        else:
+            filtered_by_clustering = filtered_by_clustering.copy()
+
+        # 3) dropped by clustering
+        dropped_positions_by_clustering = find_dropped_positions(
+            current_positions=dropped_positions_by_factor,
+            new_positions=filtered_by_clustering,
+            dropped_reason="dropped_by_clustering",
         )
 
         filtered_by_clustering["integration"] = integration

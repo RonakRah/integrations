@@ -4,7 +4,7 @@ from datetime import datetime, UTC
 from functions import (
     export_dataframe_to_dwh,union_positions_and_potential_positions,
     filter_positions,
-    get_data_from_dwh,filter_positions_and_find_comparison
+    get_data_from_dwh,filter_positions_and_find_comparison,find_dropped_positions
 )
 from constants import FINAL_OUTPUT_COLUMNS, FINAL_OUTPUT_RENAME_MAP, FINAL_OUTPUT_SOURCE_COLUMNS, MANUAL_OUTPUT_FILE,QUERY_FOR_POTENTIAL_STOPS
 from constants import INTEGRATION_COUNTRY_MODE_MAPPING_DICT,QUERY_CURRENT_GTW_POSITIONS
@@ -42,6 +42,13 @@ def run_old_new_positions_comparison(MANUAL_RUN=True,TASK_TYPE='position_compari
     # --------------------- join data
     all_stations = union_positions_and_potential_positions(stations=torkin_positions_df, potentials=potential_stops)
 
+    #  first check - if the old position is deleted in torkin
+    current_positions_after_deletion_check = find_dropped_positions(
+        current_positions=current_positions,
+        new_positions=all_stations,
+        dropped_reason="deleted_from_torkin",
+    )
+
 
     # --------------------- loop session
     travel_modes = list(INTEGRATION_COUNTRY_MODE_MAPPING_DICT.keys())
@@ -57,7 +64,7 @@ def run_old_new_positions_comparison(MANUAL_RUN=True,TASK_TYPE='position_compari
 
         filtered_positions = filter_positions_and_find_comparison(
             new_positions=positions_by_mode,
-            current_positions=current_positions,
+            current_positions=current_positions_after_deletion_check,
             integration_providers=integrations_and_providers_df,
             mode=mode,
             integrations=integrations_for_travel_mode,
