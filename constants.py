@@ -16,6 +16,7 @@ COMPARISON_OUTPUT_COLUMNS = [
     "countryName",
     "integration",
     "dropped_reason",
+    "updateAt",
 ]
 FINAL_OUTPUT_SOURCE_COLUMNS = [
     "stop_id",

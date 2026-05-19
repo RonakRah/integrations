@@ -86,6 +86,7 @@ def run_old_new_positions_comparison(MANUAL_RUN=True,TASK_TYPE='position_compari
         & (final_comparison["dropped_reason"].astype(str).str.strip() != "")
         & (final_comparison["dropped_reason"].astype(str).str.lower() != "none")
     ]
+    final_comparison["updateAt"] = datetime.now(UTC).isoformat()
     final_comparison = final_comparison.reindex(columns=COMPARISON_OUTPUT_COLUMNS)
 
     return export_dataframe_to_google_sheet(
