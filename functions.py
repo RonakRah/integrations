@@ -473,23 +473,32 @@ def export_dataframe_to_dwh(
 def export_dataframe_to_google_sheet(df, spreadsheet_id, sheet_name):
     import subprocess
 
+    import google.auth
     from google.oauth2.credentials import Credentials
     from gspread.exceptions import APIError
     import gspread
 
-    access_token = subprocess.check_output(
-        ["gcloud", "auth", "print-access-token"],
-        text=True,
-    ).strip()
-    credentials = Credentials(token=access_token)
+    try:
+        from google.colab import auth as colab_auth
+    except ImportError:
+        access_token = subprocess.check_output(
+            ["gcloud", "auth", "print-access-token"],
+            text=True,
+        ).strip()
+        credentials = Credentials(token=access_token)
+    else:
+        colab_auth.authenticate_user()
+        credentials, _ = google.auth.default()
+
     client = gspread.authorize(credentials)
     try:
         spreadsheet = client.open_by_key(spreadsheet_id)
     except PermissionError as exc:
         raise RuntimeError(
-            "Google Sheets write failed because the local Google credential does not "
-            "have the required Sheets/Drive scope. Re-run local login with: "
-            "`gcloud auth login --enable-gdrive-access --force`"
+            "Google Sheets write failed because the credential does not have the "
+            "required Sheets/Drive scope. In Colab, run the notebook auth prompt "
+            "again and grant Drive access. Locally, re-run: "
+            "`gcloud auth login --enable-gdrive-access --force`."
         ) from exc
     except APIError as exc:
         raise RuntimeError(
