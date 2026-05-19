@@ -294,6 +294,37 @@ def find_dropped_positions(current_positions, new_positions, dropped_reason):
     return current_positions_with_flag.drop(columns="_merge")
 
 
+def add_new_positions_to_comparison(comparison_positions, new_positions):
+    new_positions_for_comparison = new_positions.rename(
+        columns={
+            "stop_id": "stopId",
+            "stop_name": "stopName",
+            "country_name": "countryName",
+            "source_priority": "sourcePriority",
+            "cluster_id": "clusterId",
+            "keep_flag": "keepFlag",
+        }
+    )
+    new_positions_for_comparison = new_positions_for_comparison.merge(
+        comparison_positions[["stopId", "countryName"]].drop_duplicates(),
+        on=["stopId", "countryName"],
+        how="left",
+        indicator=True,
+    )
+    new_positions_for_comparison = new_positions_for_comparison[
+        new_positions_for_comparison["_merge"] == "left_only"
+    ].drop(columns="_merge")
+    new_positions_for_comparison["dropped_reason"] = "new"
+    new_positions_for_comparison = new_positions_for_comparison.reindex(
+        columns=comparison_positions.columns
+    )
+
+    return pd.concat(
+        [comparison_positions, new_positions_for_comparison],
+        ignore_index=True,
+    )
+
+
 def filter_positions_and_find_comparison(new_positions, current_positions, integration_providers, mode, integrations):
     results = {}
 
@@ -335,8 +366,6 @@ def filter_positions_and_find_comparison(new_positions, current_positions, integ
         )
         """---------------------------------------------------------------------"""
 
-
-        print(f" statrt clustering for -> mode:{mode} integration: {integration}")
         filtered_by_clustering = cluster_positions(
             df=filtered_by_factor,
             mode=mode,
@@ -349,6 +378,8 @@ def filter_positions_and_find_comparison(new_positions, current_positions, integ
         else:
             filtered_by_clustering = filtered_by_clustering.copy()
 
+        filtered_by_clustering["integration"] = integration
+
         # 3) dropped by clustering
         dropped_positions_by_clustering = find_dropped_positions(
             current_positions=dropped_positions_by_factor,
@@ -356,9 +387,14 @@ def filter_positions_and_find_comparison(new_positions, current_positions, integ
             dropped_reason="dropped_by_clustering",
         )
 
-        filtered_by_clustering["integration"] = integration
+        """--------------------- final check /incoming ----------------------"""
 
-        results[integration] = filtered_by_clustering
+        final_result_from_comparison = add_new_positions_to_comparison(
+            comparison_positions=dropped_positions_by_clustering,
+            new_positions=filtered_by_clustering,
+        )
+
+        results[integration] = final_result_from_comparison
 
     return pd.concat(results, ignore_index=True)
 
@@ -432,3 +468,40 @@ def export_dataframe_to_dwh(
     load_job.result()
     print(f"Successfully exported {len(df)} rows to {table_id}")
     # logger.info("Loaded %s rows into %s", load_job.output_rows, table_id)
+
+
+def export_dataframe_to_google_sheet(df, spreadsheet_id, sheet_name):
+    import subprocess
+
+    from google.oauth2.credentials import Credentials
+    from gspread.exceptions import APIError
+    import gspread
+
+    access_token = subprocess.check_output(
+        ["gcloud", "auth", "print-access-token"],
+        text=True,
+    ).strip()
+    credentials = Credentials(token=access_token)
+    client = gspread.authorize(credentials)
+    try:
+        spreadsheet = client.open_by_key(spreadsheet_id)
+    except PermissionError as exc:
+        raise RuntimeError(
+            "Google Sheets write failed because the local Google credential does not "
+            "have the required Sheets/Drive scope. Re-run local login with: "
+            "`gcloud auth login --enable-gdrive-access --force`"
+        ) from exc
+    except APIError as exc:
+        raise RuntimeError(
+            "Google Sheets write failed while opening the spreadsheet. Check that "
+            "the credential can access the spreadsheet and has Sheets API scope."
+        ) from exc
+    worksheet = spreadsheet.worksheet(sheet_name)
+
+    output_df = df.copy().where(pd.notna(df), "")
+    values = [output_df.columns.to_list()] + output_df.values.tolist()
+
+    worksheet.clear()
+    worksheet.update(values=values, range_name="A1")
+    print(f"Successfully exported {len(output_df)} rows to {worksheet.url}")
+    return worksheet.url

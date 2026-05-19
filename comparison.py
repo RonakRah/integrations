@@ -4,7 +4,8 @@ from datetime import datetime, UTC
 from functions import (
     export_dataframe_to_dwh,union_positions_and_potential_positions,
     filter_positions,
-    get_data_from_dwh,filter_positions_and_find_comparison,find_dropped_positions
+    get_data_from_dwh,filter_positions_and_find_comparison,find_dropped_positions,
+    export_dataframe_to_google_sheet
 )
 from constants import FINAL_OUTPUT_COLUMNS, FINAL_OUTPUT_RENAME_MAP, FINAL_OUTPUT_SOURCE_COLUMNS, MANUAL_OUTPUT_FILE,QUERY_FOR_POTENTIAL_STOPS
 from constants import INTEGRATION_COUNTRY_MODE_MAPPING_DICT,QUERY_CURRENT_GTW_POSITIONS
@@ -13,7 +14,11 @@ from constants import (
     INTEGRATIONS_AND_THEIR_PROVIDERS_QUERY,TORKIN_POSITIONS_QUERY
 )
 from constants import TORKIN_POSITIONS_PROJECT_ID
-from constants import OUTPUT_PROJECT_ID, OUTPUT_DATASET_ID, OUTPUT_TABLE_NAME
+from constants import (
+    OUTPUT_PROJECT_ID, OUTPUT_DATASET_ID, OUTPUT_TABLE_NAME,
+    COMPARISON_OUTPUT_COLUMNS, COMPARISON_OUTPUT_FILE,
+    COMPARISON_SHEET_NAME, COMPARISON_SPREADSHEET_ID
+)
 
 def run_old_new_positions_comparison(MANUAL_RUN=True,TASK_TYPE='position_comparison'):
     # data loading
@@ -62,14 +67,34 @@ def run_old_new_positions_comparison(MANUAL_RUN=True,TASK_TYPE='position_compari
             INTEGRATION_COUNTRY_MODE_MAPPING_DICT[mode].keys()
         )
 
-        filtered_positions = filter_positions_and_find_comparison(
+        comparison = filter_positions_and_find_comparison(
             new_positions=positions_by_mode,
             current_positions=current_positions_after_deletion_check,
             integration_providers=integrations_and_providers_df,
             mode=mode,
             integrations=integrations_for_travel_mode,
         )
-    print()
+
+        comparison["mode"] = mode
+        all_modes_results.append(comparison)
+
+    if not all_modes_results:
+        raise ValueError("No comparison results found: all_modes_results is empty")
+
+    final_comparison = pd.concat(all_modes_results, ignore_index=True)
+    final_comparison = final_comparison[
+        final_comparison["dropped_reason"].notna()
+        & (final_comparison["dropped_reason"].astype(str).str.strip() != "")
+        & (final_comparison["dropped_reason"].astype(str).str.lower() != "none")
+    ]
+    final_comparison = final_comparison.reindex(columns=COMPARISON_OUTPUT_COLUMNS)
+    final_comparison.to_csv(COMPARISON_OUTPUT_FILE, index=False)
+
+    return export_dataframe_to_google_sheet(
+        df=final_comparison,
+        spreadsheet_id=COMPARISON_SPREADSHEET_ID,
+        sheet_name=COMPARISON_SHEET_NAME,
+    )
 
 
 
