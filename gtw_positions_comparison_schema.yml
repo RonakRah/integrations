@@ -1,0 +1,22 @@
+fields:
+  - name: stopId
+    type: INTEGER
+    mode: NULLABLE
+  - name: stopName
+    type: STRING
+    mode: NULLABLE
+  - name: positionType
+    type: STRING
+    mode: NULLABLE
+  - name: countryName
+    type: STRING
+    mode: NULLABLE
+  - name: integration
+    type: STRING
+    mode: NULLABLE
+  - name: dropped_reason
+    type: STRING
+    mode: NULLABLE
+  - name: updateAt
+    type: STRING
+    mode: NULLABLE

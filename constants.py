@@ -7,8 +7,8 @@ OUTPUT_PROJECT_ID = "centered-radius-89610"
 OUTPUT_DATASET_ID = "b2b_gtw"
 OUTPUT_TABLE_NAME = "gtw_positions"
 MANUAL_OUTPUT_FILE = "gtw_integrations_and_positions.xlsx"
-COMPARISON_SPREADSHEET_ID = "1kelhwpBFzBcvqmI5Gj7BsJ3lTQ7D4MNvZbp_NmsFnaQ"
-COMPARISON_SHEET_NAME = "what will come new if we run the gtw positions"
+COMPARISON_OUTPUT_TABLE_NAME = "gtw_positions_comparison_old_new"
+COMPARISON_OUTPUT_SCHEMA_FILE = "gtw_positions_comparison_schema.yml"
 COMPARISON_OUTPUT_COLUMNS = [
     "stopId",
     "stopName",

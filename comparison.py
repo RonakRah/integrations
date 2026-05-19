@@ -5,7 +5,6 @@ from functions import (
     export_dataframe_to_dwh,union_positions_and_potential_positions,
     filter_positions,
     get_data_from_dwh,filter_positions_and_find_comparison,find_dropped_positions,
-    export_dataframe_to_google_sheet, validate_google_sheet_access
 )
 from constants import FINAL_OUTPUT_COLUMNS, FINAL_OUTPUT_RENAME_MAP, FINAL_OUTPUT_SOURCE_COLUMNS, MANUAL_OUTPUT_FILE,QUERY_FOR_POTENTIAL_STOPS
 from constants import INTEGRATION_COUNTRY_MODE_MAPPING_DICT,QUERY_CURRENT_GTW_POSITIONS
@@ -16,16 +15,13 @@ from constants import (
 from constants import TORKIN_POSITIONS_PROJECT_ID
 from constants import (
     OUTPUT_PROJECT_ID, OUTPUT_DATASET_ID, OUTPUT_TABLE_NAME,
-    COMPARISON_OUTPUT_COLUMNS, COMPARISON_SHEET_NAME, COMPARISON_SPREADSHEET_ID
+    COMPARISON_OUTPUT_COLUMNS, COMPARISON_OUTPUT_SCHEMA_FILE,
+    COMPARISON_OUTPUT_TABLE_NAME
 )
 
 def run_old_new_positions_comparison(MANUAL_RUN=True,TASK_TYPE='position_comparison'):
     # data loading
     print(F"------------------- |starting the job for {TASK_TYPE} |------------------")
-    validate_google_sheet_access(
-        spreadsheet_id=COMPARISON_SPREADSHEET_ID,
-        sheet_name=COMPARISON_SHEET_NAME,
-    )
 
     torkin_positions_df = get_data_from_dwh(
         project_id=TORKIN_POSITIONS_PROJECT_ID,
@@ -93,10 +89,14 @@ def run_old_new_positions_comparison(MANUAL_RUN=True,TASK_TYPE='position_compari
     final_comparison["updateAt"] = datetime.now(UTC).strftime("%Y-%m-%d %H:%M")
     final_comparison = final_comparison.reindex(columns=COMPARISON_OUTPUT_COLUMNS)
 
-    return export_dataframe_to_google_sheet(
+    return export_dataframe_to_dwh(
         df=final_comparison,
-        spreadsheet_id=COMPARISON_SPREADSHEET_ID,
-        sheet_name=COMPARISON_SHEET_NAME,
+        project_id=OUTPUT_PROJECT_ID,
+        dataset_id=OUTPUT_DATASET_ID,
+        table_name=COMPARISON_OUTPUT_TABLE_NAME,
+        schema_file=COMPARISON_OUTPUT_SCHEMA_FILE,
+        LOCAL=MANUAL_RUN,
+        write_mode="overwrite",
     )
 
 

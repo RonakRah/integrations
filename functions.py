@@ -3,6 +3,7 @@ import pandas as pd
 import logging
 import sys
 import time
+import yaml
 from google.cloud import bigquery
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics.pairwise import haversine_distances
@@ -57,7 +58,16 @@ def get_default_table_schema():
 
 def read_table_schema(schema_file: str | None):
     if schema_file:
-        raise NotImplementedError("Custom schema_file loading is not implemented in this repo")
+        with open(schema_file) as file:
+            schema_config = yaml.safe_load(file)
+        return [
+            bigquery.SchemaField(
+                field["name"],
+                field["type"],
+                mode=field.get("mode", "NULLABLE"),
+            )
+            for field in schema_config["fields"]
+        ]
     return get_default_table_schema()
 def get_data_from_dwh(
     project_id: str,
@@ -468,100 +478,3 @@ def export_dataframe_to_dwh(
     load_job.result()
     print(f"Successfully exported {len(df)} rows to {table_id}")
     # logger.info("Loaded %s rows into %s", load_job.output_rows, table_id)
-
-def _get_gcloud_access_token_for_sheets():
-    import subprocess
-
-    try:
-        import google.colab
-        running_in_colab = True
-    except ImportError:
-        running_in_colab = False
-
-    try:
-        return subprocess.check_output(
-            ["gcloud", "auth", "print-access-token"],
-            stderr=subprocess.DEVNULL,
-            text=True,
-        ).strip()
-    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-        if running_in_colab:
-            raise RuntimeError(
-                "No Drive-enabled gcloud user token found in Colab. Run this cell, "
-                "finish the browser/code flow, then rerun the comparison: "
-                "`!gcloud auth login --enable-gdrive-access --no-browser --force`."
-            ) from exc
-        raise RuntimeError(
-            "No gcloud user credential found. Run: "
-            "`gcloud auth login --enable-gdrive-access --force`."
-        ) from exc
-
-
-def _validate_google_sheet_token_scopes(access_token):
-    import requests
-
-    response = requests.get(
-        "https://oauth2.googleapis.com/tokeninfo",
-        params={"access_token": access_token},
-        timeout=10,
-    )
-    response.raise_for_status()
-
-    token_scopes = set(response.json().get("scope", "").split())
-    sheet_scopes = {
-        "https://www.googleapis.com/auth/drive",
-        "https://www.googleapis.com/auth/spreadsheets",
-    }
-    if token_scopes & sheet_scopes:
-        return
-
-    raise RuntimeError(
-        "The active gcloud token does not have Drive/Sheets scope. "
-        f"Current scopes: {', '.join(sorted(token_scopes)) or 'none'}. "
-        "In Colab, run `!gcloud auth revoke --all --quiet` and then "
-        "`!gcloud auth login --enable-gdrive-access --no-browser --force`. "
-        "Locally, run `gcloud auth login --enable-gdrive-access --force`."
-    )
-
-
-def _get_google_sheet_worksheet(spreadsheet_id, sheet_name):
-    import gspread
-    from google.oauth2.credentials import Credentials
-    from gspread.exceptions import APIError
-
-    access_token = _get_gcloud_access_token_for_sheets()
-    _validate_google_sheet_token_scopes(access_token)
-
-    client = gspread.authorize(Credentials(token=access_token))
-    try:
-        spreadsheet = client.open_by_key(spreadsheet_id)
-    except PermissionError as exc:
-        raise RuntimeError(
-            "Google Sheets access failed. Make sure the active Google account "
-            "has access to the spreadsheet and the token has Drive/Sheets scope."
-        ) from exc
-    except APIError as exc:
-        raise RuntimeError(
-            "Google Sheets access failed while opening the spreadsheet."
-        ) from exc
-
-    return spreadsheet.worksheet(sheet_name)
-
-
-def validate_google_sheet_access(spreadsheet_id, sheet_name):
-    _get_google_sheet_worksheet(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name)
-
-
-def export_dataframe_to_google_sheet(df, spreadsheet_id, sheet_name):
-    worksheet = _get_google_sheet_worksheet(
-        spreadsheet_id=spreadsheet_id,
-        sheet_name=sheet_name,
-    )
-
-    output_df = df.copy().where(pd.notna(df), "")
-    values = [output_df.columns.to_list()] + output_df.values.tolist()
-
-    worksheet.batch_clear(["A5:Z"])
-    worksheet.update(values=values, range_name="A5")
-    print(f"Successfully exported {len(output_df)} rows to {worksheet.url}")
-    return worksheet.url
