@@ -501,7 +501,7 @@ def export_dataframe_to_google_sheet(df, spreadsheet_id, sheet_name):
     output_df = df.copy().where(pd.notna(df), "")
     values = [output_df.columns.to_list()] + output_df.values.tolist()
 
-    worksheet.clear()
-    worksheet.update(values=values, range_name="A1")
+    worksheet.batch_clear(["A5:Z"])
+    worksheet.update(values=values, range_name="A5")
     print(f"Successfully exported {len(output_df)} rows to {worksheet.url}")
     return worksheet.url
