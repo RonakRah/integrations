@@ -479,16 +479,23 @@ def export_dataframe_to_google_sheet(df, spreadsheet_id, sheet_name):
     import gspread
 
     try:
-        from google.colab import auth as colab_auth
-    except ImportError:
         access_token = subprocess.check_output(
             ["gcloud", "auth", "print-access-token"],
+            stderr=subprocess.DEVNULL,
             text=True,
         ).strip()
         credentials = Credentials(token=access_token)
-    else:
-        colab_auth.authenticate_user()
-        credentials, _ = google.auth.default()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        try:
+            from google.colab import auth as colab_auth
+        except ImportError:
+            raise RuntimeError(
+                "No gcloud user credential found. Run: "
+                "`gcloud auth login --enable-gdrive-access --force`."
+            )
+        else:
+            colab_auth.authenticate_user()
+            credentials, _ = google.auth.default()
 
     client = gspread.authorize(credentials)
     try:
@@ -496,8 +503,9 @@ def export_dataframe_to_google_sheet(df, spreadsheet_id, sheet_name):
     except PermissionError as exc:
         raise RuntimeError(
             "Google Sheets write failed because the credential does not have the "
-            "required Sheets/Drive scope. In Colab, run the notebook auth prompt "
-            "again and grant Drive access. Locally, re-run: "
+            "required Sheets/Drive scope. In Colab, run: "
+            "`!gcloud auth login --enable-gdrive-access --no-browser --force`, "
+            "then rerun this cell. Locally, run: "
             "`gcloud auth login --enable-gdrive-access --force`."
         ) from exc
     except APIError as exc:
