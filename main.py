@@ -2,15 +2,16 @@ import pandas as pd
 from datetime import datetime, UTC
 
 from functions import (
-    export_dataframe_to_dwh,union_positions_and_potential_positions,
+    export_dataframe_to_dwh, union_positions_and_potential_positions,
     filter_positions,
-    get_data_from_dwh,find_dropped_positions
+    get_data_from_dwh, find_dropped_positions
 )
-from constants import FINAL_OUTPUT_COLUMNS, FINAL_OUTPUT_RENAME_MAP, FINAL_OUTPUT_SOURCE_COLUMNS, MANUAL_OUTPUT_FILE,QUERY_FOR_POTENTIAL_STOPS
-from constants import INTEGRATION_COUNTRY_MODE_MAPPING_DICT,QUERY_PROCESSED_GTW_POSITIONS
+from constants import FINAL_OUTPUT_COLUMNS, FINAL_OUTPUT_RENAME_MAP, FINAL_OUTPUT_SOURCE_COLUMNS, MANUAL_OUTPUT_FILE, \
+    QUERY_FOR_POTENTIAL_STOPS
+from constants import INTEGRATION_COUNTRY_MODE_MAPPING_DICT, QUERY_PROCESSED_GTW_POSITIONS
 from constants import (
     INTEGRATIONS_AND_THEIR_PROVIDERS_PROJECT_ID,
-    INTEGRATIONS_AND_THEIR_PROVIDERS_QUERY,TORKIN_POSITIONS_QUERY,QUERY_FOR_CURRENT_STOPS
+    INTEGRATIONS_AND_THEIR_PROVIDERS_QUERY, TORKIN_POSITIONS_QUERY, QUERY_FOR_CURRENT_STOPS
 )
 from constants import TORKIN_POSITIONS_PROJECT_ID
 from constants import (
@@ -19,7 +20,8 @@ from constants import (
     COMPARISON_OUTPUT_TABLE_NAME,
 )
 
-def main(MANUAL_RUN=True,TASK_TYPE='gtw_positions'):
+
+def main(MANUAL_RUN=True, TASK_TYPE='gtw_positions'):
     print(F"------------------- |starting the job for {TASK_TYPE} |------------------")
     # data loading
 
@@ -34,8 +36,7 @@ def main(MANUAL_RUN=True,TASK_TYPE='gtw_positions'):
         progress_label="potential_stops",
     )
 
-
-    all_stations = union_positions_and_potential_positions(stations=torkin_positions_df,potentials=potential_stops)
+    all_stations = union_positions_and_potential_positions(stations=torkin_positions_df, potentials=potential_stops)
 
     current_positions = get_data_from_dwh(project_id=OUTPUT_PROJECT_ID,
                                           query=QUERY_FOR_CURRENT_STOPS,
@@ -48,7 +49,6 @@ def main(MANUAL_RUN=True,TASK_TYPE='gtw_positions'):
         dropped_reason="deleted_from_torkin",
     )
 
-
     integrations_and_providers_df = get_data_from_dwh(project_id=INTEGRATIONS_AND_THEIR_PROVIDERS_PROJECT_ID,
                                                       query=INTEGRATIONS_AND_THEIR_PROVIDERS_QUERY,
 
@@ -58,17 +58,20 @@ def main(MANUAL_RUN=True,TASK_TYPE='gtw_positions'):
     all_modes_comparison_results = []
 
     for mode in travel_modes:
-
         positions_by_mode = all_stations[
             all_stations["positionType"].str.startswith(mode, na=False)
         ]
+        current_positions_by_mode = current_positions_after_deletion_check[
+            current_positions_after_deletion_check["positionType"].str.startswith(mode, na=False)
+        ]
+
         integrations_for_travel_mode = list(
             INTEGRATION_COUNTRY_MODE_MAPPING_DICT[mode].keys()
         )
         filtered_positions, comparison_result = filter_positions(
             new_processed=positions_by_mode,
-            current_torkin_positions=current_positions_after_deletion_check,
-            integration_providers= integrations_and_providers_df,
+            current_torkin_positions=current_positions_by_mode,
+            integration_providers=integrations_and_providers_df,
             mode=mode,
             integrations=integrations_for_travel_mode,
         )
@@ -91,7 +94,7 @@ def main(MANUAL_RUN=True,TASK_TYPE='gtw_positions'):
         comparison_df["dropped_reason"].notna()
         & (comparison_df["dropped_reason"].astype(str).str.strip() != "")
         & (comparison_df["dropped_reason"].astype(str).str.lower() != "none")
-    ]
+        ]
     comparison_df = comparison_df.rename(
         columns={
             "stop_name": "stopName",

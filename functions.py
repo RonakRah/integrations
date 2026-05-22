@@ -211,6 +211,8 @@ def filter_positions(new_processed, current_torkin_positions, integration_provid
     comparison_result = {}
 
     for integration in integrations:
+        if integration == 'us_omio':
+            print()
         # allowed countries
         allowed_countries = INTEGRATION_COUNTRY_MODE_MAPPING_DICT[mode][integration]
         allowed_providers = integration_providers.loc[
@@ -220,13 +222,19 @@ def filter_positions(new_processed, current_torkin_positions, integration_provid
             new_processed["country_name"].isin(allowed_countries)
             & new_processed["provider_name"].isin(allowed_providers)
             ]
-
+        current_positions_by_integration = current_torkin_positions[(current_torkin_positions["integration"] == integration)]
         # 2) dropped by provider
         dropped_positions_by_provider = find_dropped_positions(
-            current_positions=current_torkin_positions[(current_torkin_positions["integration"] == integration)],
+            current_positions=current_positions_by_integration,
             new_positions=positions_by_allowed_countries_and_providers,
             dropped_reason="dropped_by_provider",
+            match_columns=["stopId", "countryName", "provider_name"],
+            partial_match_columns=["stopId", "countryName"],
+            partial_match_dropped_reason="to_drop",
         )
+        positions_after_provider_drop_check = dropped_positions_by_provider[
+            ~dropped_positions_by_provider["dropped_reason"].eq("to_drop")
+        ].copy()
         positions_by_countries = positions_by_allowed_countries_and_providers.drop(
             columns=["provider_name"]).drop_duplicates().reset_index(drop=True)
         stops_before_factor_filter = positions_by_countries["stop_id"].nunique()
@@ -235,7 +243,7 @@ def filter_positions(new_processed, current_torkin_positions, integration_provid
                                                          mode=mode,
                                                          integration=integration)
         dropped_positions_by_factor = find_dropped_positions(
-            current_positions=dropped_positions_by_provider,
+            current_positions=positions_after_provider_drop_check,
             new_positions=filtered_by_factor,
             dropped_reason="dropped_by_factor",
         )
@@ -275,9 +283,20 @@ def filter_positions(new_processed, current_torkin_positions, integration_provid
         ].nunique()} stops"
         )
 
+        filtered_by_clustering_for_comparison["integration"] = integration
+
+        comparison_positions = add_new_positions_to_comparison(
+            comparison_positions=dropped_positions_by_clustering,
+            new_positions=filtered_by_clustering_for_comparison,
+            current_positions=current_torkin_positions[
+                current_torkin_positions["integration"] == integration
+            ],
+            new_positions_provider_source=positions_by_allowed_countries_and_providers,
+        )
+
         filtered_by_clustering["integration"] = integration
         results[integration] = filtered_by_clustering
-        comparison_result[integration] = dropped_positions_by_clustering
+        comparison_result[integration] = comparison_positions
 
     return (
         pd.concat(results, ignore_index=True),
@@ -285,7 +304,14 @@ def filter_positions(new_processed, current_torkin_positions, integration_provid
     )
 
 
-def find_dropped_positions(current_positions, new_positions, dropped_reason):
+def find_dropped_positions(
+    current_positions,
+    new_positions,
+    dropped_reason,
+    match_columns=None,
+    partial_match_columns=None,
+    partial_match_dropped_reason=None,
+):
     current_positions = current_positions.rename(
         columns={"stop_id": "stopId", "country_name": "countryName"}
     )
@@ -294,14 +320,17 @@ def find_dropped_positions(current_positions, new_positions, dropped_reason):
     )
     current_positions["stopId"] = pd.to_numeric(current_positions["stopId"]).astype("Int64")
     new_positions["stopId"] = pd.to_numeric(new_positions["stopId"]).astype("Int64")
+    if match_columns is None:
+        match_columns = ["stopId", "countryName"]
+
     new_keys = new_positions[
-        ["stopId", "countryName"]
+        match_columns
     ].drop_duplicates()
 
     current_positions_with_flag = (
         current_positions.merge(
             new_keys,
-            on=["stopId", "countryName"],
+            on=match_columns,
             how="left",
             indicator=True,
         )
@@ -310,31 +339,69 @@ def find_dropped_positions(current_positions, new_positions, dropped_reason):
     if "dropped_reason" not in current_positions_with_flag.columns:
         current_positions_with_flag["dropped_reason"] = None
 
+    dropped_reason_as_text = (
+        current_positions_with_flag["dropped_reason"].astype("string").str.strip()
+    )
+    has_existing_dropped_reason = (
+        current_positions_with_flag["dropped_reason"].notna()
+        & dropped_reason_as_text.ne("")
+        & dropped_reason_as_text.str.lower().ne("none")
+        & dropped_reason_as_text.str.lower().ne("nan")
+    )
     should_set_dropped_reason = (
             (current_positions_with_flag["_merge"] == "left_only")
-            & current_positions_with_flag["dropped_reason"].isna()
+            & ~has_existing_dropped_reason
     )
+    reason_to_set = dropped_reason
+    columns_to_drop = ["_merge"]
+
+    if partial_match_columns is not None and partial_match_dropped_reason is not None:
+        partial_keys = new_positions[partial_match_columns].drop_duplicates().copy()
+        partial_keys["_partial_match"] = True
+        current_positions_with_flag = current_positions_with_flag.merge(
+            partial_keys,
+            on=partial_match_columns,
+            how="left",
+        )
+        reason_to_set = np.where(
+            current_positions_with_flag["_partial_match"].eq(True),
+            partial_match_dropped_reason,
+            dropped_reason,
+        )
+        columns_to_drop.append("_partial_match")
+
     current_positions_with_flag["dropped_reason"] = np.where(
         should_set_dropped_reason,
-        dropped_reason,
+        reason_to_set,
         current_positions_with_flag["dropped_reason"],
     )
-    return current_positions_with_flag.drop(columns="_merge")
+    return current_positions_with_flag.drop(columns=columns_to_drop)
 
 
-def add_new_positions_to_comparison(comparison_positions, new_positions):
+def add_new_positions_to_comparison(
+    comparison_positions,
+    new_positions,
+    current_positions=None,
+    new_positions_provider_source=None,
+):
+    comparison_positions = comparison_positions.copy()
+    if current_positions is None:
+        current_positions = comparison_positions
+    current_positions = current_positions.rename(
+        columns={"stop_id": "stopId", "country_name": "countryName"}
+    ).copy()
     new_positions_for_comparison = new_positions.rename(
         columns={
             "stop_id": "stopId",
-            "stop_name": "stopName",
             "country_name": "countryName",
-            "source_priority": "sourcePriority",
-            "cluster_id": "clusterId",
-            "keep_flag": "keepFlag",
         }
     )
+    current_positions["stopId"] = pd.to_numeric(current_positions["stopId"]).astype("Int64")
+    new_positions_for_comparison["stopId"] = pd.to_numeric(
+        new_positions_for_comparison["stopId"]
+    ).astype("Int64")
     new_positions_for_comparison = new_positions_for_comparison.merge(
-        comparison_positions[["stopId", "countryName"]].drop_duplicates(),
+        current_positions[["stopId", "countryName"]].drop_duplicates(),
         on=["stopId", "countryName"],
         how="left",
         indicator=True,
@@ -342,6 +409,21 @@ def add_new_positions_to_comparison(comparison_positions, new_positions):
     new_positions_for_comparison = new_positions_for_comparison[
         new_positions_for_comparison["_merge"] == "left_only"
         ].drop(columns="_merge")
+    if (
+        new_positions_provider_source is not None
+        and "provider_name" not in new_positions_for_comparison.columns
+    ):
+        provider_source = new_positions_provider_source.rename(
+            columns={"stop_id": "stopId", "country_name": "countryName"}
+        )
+        provider_source["stopId"] = pd.to_numeric(provider_source["stopId"]).astype("Int64")
+        new_positions_for_comparison = new_positions_for_comparison.merge(
+            provider_source[
+                ["stopId", "countryName", "provider_name"]
+            ].drop_duplicates(),
+            on=["stopId", "countryName"],
+            how="left",
+        )
     new_positions_for_comparison["dropped_reason"] = "new"
     new_positions_for_comparison = new_positions_for_comparison.reindex(
         columns=comparison_positions.columns
@@ -377,7 +459,13 @@ def filter_positions_and_find_comparison(new_positions, current_positions, integ
             current_positions=current_positions[(current_positions["integration"] == integration)],
             new_positions=positions_by_allowed_countries_and_providers,
             dropped_reason="dropped_by_provider",
+            match_columns=["stopId", "countryName", "provider_name"],
+            partial_match_columns=["stopId", "countryName"],
+            partial_match_dropped_reason="to_drop",
         )
+        positions_after_provider_drop_check = dropped_positions_by_provider[
+            ~dropped_positions_by_provider["dropped_reason"].eq("to_drop")
+        ].copy()
         """---------------------------------------------------------------------------"""
 
         filtered_by_factor = filter_positions_by_factors(df=positions_by_countries,
@@ -388,7 +476,7 @@ def filter_positions_and_find_comparison(new_positions, current_positions, integ
 
         # 3) dropped by factor
         dropped_positions_by_factor = find_dropped_positions(
-            current_positions=dropped_positions_by_provider,
+            current_positions=positions_after_provider_drop_check,
             new_positions=filtered_by_factor,
             dropped_reason="dropped_by_factor",
         )
@@ -420,6 +508,10 @@ def filter_positions_and_find_comparison(new_positions, current_positions, integ
         final_result_from_comparison = add_new_positions_to_comparison(
             comparison_positions=dropped_positions_by_clustering,
             new_positions=filtered_by_clustering,
+            current_positions=current_positions[
+                current_positions["integration"] == integration
+            ],
+            new_positions_provider_source=positions_by_allowed_countries_and_providers,
         )
 
         results[integration] = final_result_from_comparison

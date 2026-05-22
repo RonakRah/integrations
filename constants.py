@@ -186,6 +186,7 @@ SELECT
     current_stops.integration,
     current_stops.stop_id,
     current_stops.stop_name,
+    LOWER(torkin_positions.positionType) AS positionType,
     LOWER(torkin_countries.name) AS country_name,
     LOWER(providers.provider_name) AS provider_name
 FROM current_stops
