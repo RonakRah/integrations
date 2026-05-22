@@ -12,9 +12,9 @@ COMPARISON_OUTPUT_SCHEMA_FILE = "gtw_positions_comparison_schema.yml"
 COMPARISON_OUTPUT_COLUMNS = [
     "stopId",
     "stopName",
-    "positionType",
     "countryName",
     "integration",
+    "providerName",
     "dropped_reason",
     "updateAt",
 ]
@@ -58,6 +58,12 @@ FINAL_OUTPUT_COLUMNS = [
     "updateAt",
 ]
 
+PROVIDER_RESTRICTION_QUERY = """
+SELECT DISTINCT
+    LOWER(service_provider) AS provider
+FROM `centered-radius-89610.b2b_gtw.gtw_integrations_with_allowed_providers`
+"""
+
 TORKIN_POSITIONS_QUERY = f"""
 WITH torkin_positions AS (
 SELECT
@@ -90,22 +96,14 @@ SELECT
 ,providers AS (
 SELECT DISTINCT
        provider_id,
-       LOWER(provider_name) AS provider_name,
-FROM centered-radius-89610.dwh_core.providers
+       LOWER(provider_name) AS provider_name
+FROM `centered-radius-89610.dwh_core.providers`
 )
-,google_provider_restriction AS (
-SELECT
-
-    LOWER(service_provider) AS provider
-    FROM centered-radius-89610.b2b_gtw.gtw_integrations_with_allowed_providers
-)
-
-,torkin_positions_with_allowed_providers AS (
+,torkin_positions_with_providers AS (
      SELECT tp.*,
             pro.provider_name
      FROM torkin_positions AS tp
      LEFT JOIN providers AS pro ON tp.provider_id = pro.provider_id
-     WHERE LOWER(pro.provider_name) IN (SELECT provider FROM google_provider_restriction)
 )
 ,join_positions_with_countries AS (
 SELECT ts.stop_id,
@@ -119,7 +117,7 @@ SELECT ts.stop_id,
        ts.searchCountYearly,
        ts.usageFactor,
        ts.source_priority
-FROM  torkin_positions_with_allowed_providers AS ts
+FROM  torkin_positions_with_providers AS ts
 LEFT JOIN torkin_countries AS tc ON ts.countryId = tc.id
 )
 SELECT *
@@ -170,9 +168,39 @@ LEFT JOIN  `centered-radius-89610.dwh_core.providers` as p ON rt.element.provide
 )
 SELECT * FROM potential_stations_joined_with_torkin
 """
-
-QUERY_CURRENT_GTW_POSITIONS = f"""
-WITH current_gtw_positions AS (
+QUERY_FOR_CURRENT_STOPS = f"""
+WITH current_stops AS (
+    SELECT
+        CASE
+            WHEN integration_id = 'jp_omio' THEN 'jp_omio_train'
+            ELSE integration_id
+        END AS integration,
+            SAFE_CAST(
+        REGEXP_EXTRACT(TRIM(CAST(stop_id AS STRING)), r'[0-9]+')
+        AS INT64
+    ) AS stop_id,
+        stop_name
+    FROM `centered-radius-89610.b2b_gtw.tac_ft_transport_stop_mapping`
+)
+SELECT
+    current_stops.integration,
+    current_stops.stop_id,
+    current_stops.stop_name,
+    LOWER(torkin_countries.name) AS country_name,
+    LOWER(providers.provider_name) AS provider_name
+FROM current_stops
+LEFT JOIN `centered-radius-89610.dwh_raw.torkin_position_v1` AS torkin_positions
+    ON CAST(current_stops.stop_id AS STRING) = torkin_positions.id
+    AND torkin_positions.deleted = FALSE
+LEFT JOIN UNNEST(torkin_positions.relatedTerminals.list) AS related_terminal
+LEFT JOIN `centered-radius-89610.dwh_core.providers` AS providers
+    ON related_terminal.element.providerId = providers.provider_id
+LEFT JOIN `centered-radius-89610.dwh_raw.torkin_country_v1` AS torkin_countries
+    ON torkin_positions.countryid = torkin_countries.id
+WHERE current_stops.stop_id IS NOT NULL
+"""
+QUERY_PROCESSED_GTW_POSITIONS = f"""
+WITH processed_gtw_positions AS (
     SELECT *
     FROM centered-radius-89610.b2b_gtw.gtw_positions
     WHERE (
@@ -182,13 +210,13 @@ WITH current_gtw_positions AS (
     OR positionType = 'busstation'
 )
 SELECT * EXCEPT(updateAt)
-FROM current_gtw_positions
+FROM processed_gtw_positions
 # SELECT
-#     current_gtw_positions.* EXCEPT(updateAt),
+#     processed_gtw_positions.* EXCEPT(updateAt),
 #     LOWER(providers.provider_name) AS provider_name
-# FROM current_gtw_positions
+# FROM processed_gtw_positions
 # LEFT JOIN `centered-radius-89610.dwh_raw.torkin_position_v1` AS torkin_positions
-#     ON CAST(current_gtw_positions.stopId AS STRING) = torkin_positions.id
+#     ON CAST(processed_gtw_positions.stopId AS STRING) = torkin_positions.id
 #     AND torkin_positions.deleted = FALSE
 # LEFT JOIN UNNEST(torkin_positions.relatedTerminals.list) AS related_terminal
 # LEFT JOIN `centered-radius-89610.dwh_core.providers` AS providers

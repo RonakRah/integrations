@@ -8,7 +8,7 @@ from google.cloud import bigquery
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics.pairwise import haversine_distances
 
-from constants import NO_FILTER_FOR_THESE_INTEGRATIONS,INTEGRATION_COUNTRY_MODE_MAPPING_DICT
+from constants import NO_FILTER_FOR_THESE_INTEGRATIONS, INTEGRATION_COUNTRY_MODE_MAPPING_DICT
 from constants import OUTPUT_PROJECT_ID, OUTPUT_DATASET_ID, OUTPUT_TABLE_NAME
 
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s - %(message)s"
@@ -69,12 +69,14 @@ def read_table_schema(schema_file: str | None):
             for field in schema_config["fields"]
         ]
     return get_default_table_schema()
+
+
 def get_data_from_dwh(
-    project_id: str,
-    query: str,
-    job_config: bigquery.QueryJobConfig | None = None,
-    progress_label: str | None = None,
-    poll_interval_seconds: int = 30,
+        project_id: str,
+        query: str,
+        job_config: bigquery.QueryJobConfig | None = None,
+        progress_label: str | None = None,
+        poll_interval_seconds: int = 30,
 ) -> pd.DataFrame:
     logger.info("Fetching data from BigQuery project=%s with local credentials", project_id)
     client = get_bigquery_client(project_id=project_id)
@@ -106,10 +108,10 @@ def get_data_from_dwh(
     logger.info("Fetched %s rows from BigQuery", len(dataframe))
     return dataframe
 
+
 def filter_positions_by_factors(df, mode, integration):
     print(f"mode:{mode} integration: {integration} is in filtering by factors process...")
     if integration in NO_FILTER_FOR_THESE_INTEGRATIONS:
-
         return df
 
     if mode == "train":
@@ -126,6 +128,7 @@ def filter_positions_by_factors(df, mode, integration):
             ]
     else:
         return df[df["usageFactor"] > 0]
+
 
 def _cluster_single_country_positions(df):
     if len(df) == 1:
@@ -153,7 +156,7 @@ def _cluster_single_country_positions(df):
     df["cluster_id"] = clustering.fit_predict(dist_matrix_m)
 
     df["keep_flag"] = (
-           df["usageFactor"] ==
+            df["usageFactor"] ==
             df.groupby("cluster_id")["usageFactor"].transform("max")
     )
     df = df.sort_values(["cluster_id", "stop_id"])
@@ -184,7 +187,9 @@ def cluster_positions(df, mode, integration):
     return pd.concat(clustered_country_frames, ignore_index=True).sort_values(
         ["cluster_id", "stop_id"]
     )
-def union_positions_and_potential_positions(stations,potentials ):
+
+
+def union_positions_and_potential_positions(stations, potentials):
     df = pd.concat([stations, potentials], ignore_index=True)
 
     # Sort so priority 1 comes first
@@ -200,39 +205,49 @@ def union_positions_and_potential_positions(stations,potentials ):
     df = df.reset_index(drop=True)
     return df
 
-def filter_positions(df,integration_providers, mode,integrations):
 
+def filter_positions(new_processed, current_torkin_positions, integration_providers, mode, integrations):
     results = {}
-
+    comparison_result = {}
 
     for integration in integrations:
-
-
         # allowed countries
         allowed_countries = INTEGRATION_COUNTRY_MODE_MAPPING_DICT[mode][integration]
-        allowed_providers = integration_providers.loc[integration_providers["integration"]==integration,"service_provider"].to_list()
+        allowed_providers = integration_providers.loc[
+            integration_providers["integration"] == integration, "service_provider"].to_list()
         # only positions for those countries
-        positions_by_allowed_countries_and_providers = df[
-            df["country_name"].isin(allowed_countries)
-            & df["provider_name"].isin(allowed_providers)
-        ]
-        positions_by_countries = positions_by_allowed_countries_and_providers.drop(columns=["provider_name"]).drop_duplicates().reset_index(drop=True)
+        positions_by_allowed_countries_and_providers = new_processed[
+            new_processed["country_name"].isin(allowed_countries)
+            & new_processed["provider_name"].isin(allowed_providers)
+            ]
+
+        # 2) dropped by provider
+        dropped_positions_by_provider = find_dropped_positions(
+            current_positions=current_torkin_positions[(current_torkin_positions["integration"] == integration)],
+            new_positions=positions_by_allowed_countries_and_providers,
+            dropped_reason="dropped_by_provider",
+        )
+        positions_by_countries = positions_by_allowed_countries_and_providers.drop(
+            columns=["provider_name"]).drop_duplicates().reset_index(drop=True)
         stops_before_factor_filter = positions_by_countries["stop_id"].nunique()
 
-        
-        filtered_by_factor = filter_positions_by_factors( df=positions_by_countries,
-                                                    mode=mode,
-                                                    integration=integration)
-        stops_after_factor_filter = filtered_by_factor["stop_id"].nunique()
-        dropped_stops_by_factor_filter = (
-            stops_before_factor_filter - stops_after_factor_filter
+        filtered_by_factor = filter_positions_by_factors(df=positions_by_countries,
+                                                         mode=mode,
+                                                         integration=integration)
+        dropped_positions_by_factor = find_dropped_positions(
+            current_positions=dropped_positions_by_provider,
+            new_positions=filtered_by_factor,
+            dropped_reason="dropped_by_factor",
         )
+        stops_after_factor_filter = filtered_by_factor["stop_id"].nunique()
         print(
             f"mode:{mode} integration:{integration} "
-            f"factor filter dropped {dropped_stops_by_factor_filter} stops "
+            f"factor filter dropped {dropped_positions_by_factor.loc[
+                dropped_positions_by_factor["dropped_reason"].eq("dropped_by_factor"),
+                "stopId",
+            ].nunique()} stops "
             f"from {stops_before_factor_filter} to {stops_after_factor_filter}"
         )
-
 
         print(f" statrt clustering for -> mode:{mode} integration: {integration}")
         filtered_by_clustering = cluster_positions(
@@ -240,45 +255,48 @@ def filter_positions(df,integration_providers, mode,integrations):
             mode=mode,
             integration=integration,
         )
+        if mode == "train":
+            filtered_by_clustering_for_comparison = filtered_by_clustering[
+                filtered_by_clustering["keep_flag"].eq(True)
+            ].copy()
+        else:
+            filtered_by_clustering_for_comparison = filtered_by_clustering.copy()
+
+        dropped_positions_by_clustering = find_dropped_positions(
+            current_positions=dropped_positions_by_factor,
+            new_positions=filtered_by_clustering_for_comparison,
+            dropped_reason="dropped_by_clustering",
+        )
+        print(
+            f"mode:{mode} integration:{integration} "
+            f"clustering dropped {dropped_positions_by_clustering.loc[
+            dropped_positions_by_clustering["dropped_reason"].eq("dropped_by_clustering"),
+            "stopId",
+        ].nunique()} stops"
+        )
 
         filtered_by_clustering["integration"] = integration
-
         results[integration] = filtered_by_clustering
+        comparison_result[integration] = dropped_positions_by_clustering
 
-    return pd.concat(results, ignore_index=True)
-
-
-def find_dropped_provider_per_position(current_positions, new_positions):
-    current_keys = current_positions[
-        ["stopId", "countryName", "provider_name"]
-    ].rename(columns={"stopId": "stop_id","countryName":"country_name"}).drop_duplicates()
-
-    new_keys = new_positions[["stop_id","country_name" , "provider_name"]].copy()
-    new_keys = new_keys[
-        ["stop_id","country_name" , "provider_name"]
-    ].drop_duplicates()
-
-    dropped_by_provider = (
-        current_keys.merge(
-            new_keys,
-            on=["stop_id",  "provider_name"],
-            how="left",
-            indicator=True,
-        )
-        .query("_merge == 'left_only'")
-        .drop(columns="_merge")
-        .reset_index(drop=True)
+    return (
+        pd.concat(results, ignore_index=True),
+        pd.concat(comparison_result, ignore_index=True),
     )
-    dropped_by_provider["dropped_reason"] = "dropped_by_provider"
-    return dropped_by_provider
 
 
 def find_dropped_positions(current_positions, new_positions, dropped_reason):
-    new_keys = new_positions[
-        ["stop_id", "country_name"]
-    ].rename(
+    current_positions = current_positions.rename(
         columns={"stop_id": "stopId", "country_name": "countryName"}
-    ).drop_duplicates()
+    )
+    new_positions = new_positions.rename(
+        columns={"stop_id": "stopId", "country_name": "countryName"}
+    )
+    current_positions["stopId"] = pd.to_numeric(current_positions["stopId"]).astype("Int64")
+    new_positions["stopId"] = pd.to_numeric(new_positions["stopId"]).astype("Int64")
+    new_keys = new_positions[
+        ["stopId", "countryName"]
+    ].drop_duplicates()
 
     current_positions_with_flag = (
         current_positions.merge(
@@ -293,8 +311,8 @@ def find_dropped_positions(current_positions, new_positions, dropped_reason):
         current_positions_with_flag["dropped_reason"] = None
 
     should_set_dropped_reason = (
-        (current_positions_with_flag["_merge"] == "left_only")
-        & current_positions_with_flag["dropped_reason"].isna()
+            (current_positions_with_flag["_merge"] == "left_only")
+            & current_positions_with_flag["dropped_reason"].isna()
     )
     current_positions_with_flag["dropped_reason"] = np.where(
         should_set_dropped_reason,
@@ -323,7 +341,7 @@ def add_new_positions_to_comparison(comparison_positions, new_positions):
     )
     new_positions_for_comparison = new_positions_for_comparison[
         new_positions_for_comparison["_merge"] == "left_only"
-    ].drop(columns="_merge")
+        ].drop(columns="_merge")
     new_positions_for_comparison["dropped_reason"] = "new"
     new_positions_for_comparison = new_positions_for_comparison.reindex(
         columns=comparison_positions.columns
@@ -357,7 +375,7 @@ def filter_positions_and_find_comparison(new_positions, current_positions, integ
         # 2) dropped by provider
         dropped_positions_by_provider = find_dropped_positions(
             current_positions=current_positions[(current_positions["integration"] == integration)],
-            new_positions=positions_by_countries,
+            new_positions=positions_by_allowed_countries_and_providers,
             dropped_reason="dropped_by_provider",
         )
         """---------------------------------------------------------------------------"""
@@ -431,6 +449,7 @@ def export_main_results_to_dwh(df):
         table_name=OUTPUT_TABLE_NAME,
     )
 
+
 def log_write_mode_action(write_mode: str, table_id: str) -> None:
     if write_mode == "append":
         # logger.info("Appending data to existing table: %s", table_id)
@@ -438,6 +457,8 @@ def log_write_mode_action(write_mode: str, table_id: str) -> None:
     if write_mode == "overwrite":
         # logger.info("Overwriting table data: %s", table_id)
         return
+
+
 def get_write_disposition(write_mode: str) -> str:
     # logger.info("Resolving write mode: %s", write_mode)
     write_dispositions = {
@@ -449,14 +470,15 @@ def get_write_disposition(write_mode: str) -> str:
         raise ValueError(f"Unsupported write_mode '{write_mode}'. Use one of: {allowed_modes}")
     return write_dispositions[write_mode]
 
+
 def export_dataframe_to_dwh(
-    df: pd.DataFrame,
-    project_id: str,
-    dataset_id: str,
-    table_name: str,
-    schema_file: str | None = None,
-    LOCAL: bool = True,
-    write_mode: str = "overwrite",
+        df: pd.DataFrame,
+        project_id: str,
+        dataset_id: str,
+        table_name: str,
+        schema_file: str | None = None,
+        LOCAL: bool = True,
+        write_mode: str = "overwrite",
 ) -> None:
     table_id = f"{project_id}.{dataset_id}.{table_name}"
     write_disposition = get_write_disposition(write_mode)
