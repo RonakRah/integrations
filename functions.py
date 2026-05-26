@@ -206,7 +206,7 @@ def union_positions_and_potential_positions(stations, potentials):
     return df
 
 
-def filter_positions(new_processed, current_torkin_positions, integration_providers, mode, integrations):
+def filter_positions(new_processed, current_tac_positions, integration_providers, mode, integrations):
     results = {}
     comparison_result = {}
 
@@ -222,7 +222,7 @@ def filter_positions(new_processed, current_torkin_positions, integration_provid
             new_processed["country_name"].isin(allowed_countries)
             & new_processed["provider_name"].isin(allowed_providers)
             ]
-        current_positions_by_integration = current_torkin_positions[(current_torkin_positions["integration"] == integration)]
+        current_positions_by_integration = current_tac_positions[(current_tac_positions["integration"] == integration)]
         # 2) dropped by provider
         dropped_positions_by_provider = find_dropped_positions(
             current_positions=current_positions_by_integration,
@@ -288,9 +288,9 @@ def filter_positions(new_processed, current_torkin_positions, integration_provid
         comparison_positions = add_new_positions_to_comparison(
             comparison_positions=dropped_positions_by_clustering,
             new_positions=filtered_by_clustering_for_comparison,
-            current_positions=current_torkin_positions[
-                current_torkin_positions["integration"] == integration
-            ],
+            current_positions=current_tac_positions[
+                current_tac_positions["integration"] == integration
+                ],
             new_positions_provider_source=positions_by_allowed_countries_and_providers,
         )
 

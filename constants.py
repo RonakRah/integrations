@@ -186,7 +186,25 @@ SELECT
     current_stops.integration,
     current_stops.stop_id,
     current_stops.stop_name,
-    LOWER(torkin_positions.positionType) AS positionType,
+    COALESCE(
+        LOWER(torkin_positions.positionType),
+        CASE
+            WHEN LOWER(current_stops.integration) IN (
+                'eu_omio_bus',
+                'jp_omio_bus',
+                'br_omio_bus'
+            ) THEN 'busstation'
+            WHEN LOWER(current_stops.integration) IN (
+                'eu_omio',
+                'jp_omio_train',
+                'uk_omio_nationalrail',
+                'uk_lner',
+                'pt_omio_comboios',
+                'eu_omio_deutschebahn',
+                'us_omio'
+            ) THEN 'trainstation'
+        END
+    ) AS positionType,
     LOWER(torkin_countries.name) AS country_name,
     LOWER(providers.provider_name) AS provider_name
 FROM current_stops

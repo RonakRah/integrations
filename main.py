@@ -70,7 +70,7 @@ def main(MANUAL_RUN=True, TASK_TYPE='gtw_positions'):
         )
         filtered_positions, comparison_result = filter_positions(
             new_processed=positions_by_mode,
-            current_torkin_positions=current_positions_by_mode,
+            current_tac_positions=current_positions_by_mode,
             integration_providers=integrations_and_providers_df,
             mode=mode,
             integrations=integrations_for_travel_mode,
