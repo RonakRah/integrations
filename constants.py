@@ -180,7 +180,7 @@ WITH current_stops AS (
         AS INT64
     ) AS stop_id,
         stop_name
-    FROM `centered-radius-89610.b2b_gtw.tac_ft_transport_stop_mapping`
+    FROM `centered-radius-89610.google_tac_dashboard_data_eu.ft_transport_stop_mapping`
 )
 SELECT
     current_stops.integration,
@@ -254,10 +254,10 @@ INTEGRATION_COUNTRY_MODE_MAPPING_DICT = {
         "uk_lner": ["united kingdom"],
         "pt_omio_comboios": ["portugal"],
 
-        "eu_omio_deutschebahn": ["germany","italy","france","united kingdom","spain","austria",
-            "sweden","switzerland","czechia","poland","belgium","netherlands",
-            "hungary","denmark","slovakia","norway","finland","luxembourg",
-            "liechtenstein"],
+        "eu_omio_deutschebahn": ["germany","france","austria"
+            ,"switzerland","czechia","poland","belgium","netherlands"
+            ,"denmark","luxembourg"],
+
         "us_omio": ["usa"],
     },
 
